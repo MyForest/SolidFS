@@ -153,6 +153,14 @@ plugins: xdist-3.5.0
 
 ## Similar Projects
 
+### Visual Studio Code Extension solidFS
+
 [Jesse Wright](https://github.com/jeswr) has had a [solidFS](https://marketplace.visualstudio.com/items?itemName=jeswr.solidfs) extension for VSCode for a while. We agreed there won't be confusion because SolidFS will never be a VSCode extension. Despite the similar names David Bowen opted for "SolidFS" to align with [other FUSE driver naming](https://en.wikipedia.org/wiki/Filesystem_in_Userspace#Remote/distributed_file_system_clients).
 
+### Solid File Client
+
 There are a number of [Solid apps](https://solidproject.org/apps), for example Jeff Zucker's [solid-file-client](https://github.com/jeff-zucker/solid-file-client) can be used to do many of the things SolidFS would do, but solid-file-client has Solid-focused parts such as specifying the content type for files which can't be done using normal file interactions via FUSE.
+
+### bash-like Functions for Solid
+
+SolidLab have a [bashlib](https://github.com/SolidLabResearch/Bashlib/) tool which uses TypeScript to implement the file management functions. By using custom commands it provides more options on each command than you get with SolidFS.

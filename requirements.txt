@@ -1,0 +1,10 @@
+fuse-python
+rdflib
+requests
+structlog
+python-json-logger
+black
+isort
+python-magic
+pytest
+pytest-xdist

@@ -1,0 +1,22 @@
+{
+  "name": "Python SolidFS",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "../"
+  },
+  "runArgs": [
+    "--cap-add=SYS_ADMIN",
+    "--device=/dev/fuse"
+  ],
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "python3",
+        "terminal.integrated.shell.linux": "/bin/bash"
+      },
+      "extensions": [
+        "ms-python.python"
+      ]
+    }
+  }
+}

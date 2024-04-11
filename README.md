@@ -2,22 +2,22 @@
 
 SolidFS is a [FUSE](https://github.com/libfuse/libfuse) driver for [Solid](https://solidproject.org/).
 
-It is very limited in what it can support but is able to interact with Pods.
+It is very limited in what it can support but is able to interact with Solid Pods.
 
 Some of the limitations are:
 1. shortcomings in this code
 2. related to server implementations
 3. related to the current Solid specification
 
-There is no plan to resolve any one of the specific shortcomings at 2024-04-11.
+There is no plan to resolve any one of the specific shortcomings as at 2024-04-11.
 
 ## Running
 
-It's currently very hard to run this.
-
-We're assuming you are mounting your Solid Pod at `/data/`.
+It's currently very hard to run this from source. You may find the Docker approach the easiest if you're unsure of what to do.
 
 ### Python
+
+We're assuming you are mounting your Solid Pod at `/data/`.
 
 You may be successful with:
 1. a suitable Python environment with the [requirements](requirements.txt)
@@ -26,13 +26,11 @@ You may be successful with:
 
 ### Docker
 
-```bash
-docker \
-  build \
-  -t solidfs \
-  -f .devcontainer/Dockerfile \
-  .
-```
+You can mount the FUSE device inside the container and therefore use Docker to mount your Pod. Although the code works in a [rootless podman container](https://github.com/containers/podman/blob/main/docs/tutorials/rootless_tutorial.md), it doesn't appear in the host OS which is a problem in most use-cases but may be OK for your use-case.
+
+#### Provide Access to root
+
+`cd` to the place you want to mount your Pod, or alter the `$(pwd)` part of the following command:
 
 ```bash
 docker run \
@@ -42,18 +40,45 @@ docker run \
   --name solidfs \
   -v $(pwd)/:/data/:rshared \
   --env-file ${HOME}/.env \
-  solidfs \
+  myforest/solidfs \
  -fd /data/
 ```
+#### Provide Access to All Users
+In the very likely case that you want to access the Pod mount as a normal user you will want to add the `-o allow_other` option. Of course this means other people on your machine can see your Pod so be thoughtful about that.
+
+`cd` to the place you want to mount your Pod, or alter the `$(pwd)` part of the following command:
+
+```bash
+docker run \
+  --rm \
+  --cap-add=SYS_ADMIN \
+  --device=/dev/fuse \
+  --name solidfs \
+  -v $(pwd)/:/data/:rshared \
+  --env-file ${HOME}/.env \
+  myforest/solidfs \
+ -fd -o allow_other /data/
+```
+
+#### Building
+
+If you'd like to build the container locally use a command such as this:
+
+```bash
+docker build -t myforest/solidfs  .
+```
+
 
 ## Using
+
+In these examples we assume your working directory is the place you mounted your Pod.
 
 ### Simple Listing
 
 Start off gently:
 
 ```bash
-ls -lh /data/
+ls -lh
 ```
 You may see some output like this:
 ```
@@ -72,7 +97,7 @@ drwx------. 2 root root 0 Jul 20  2022 settings
 Being more adventerous:
 
 ```bash
-find /data/test/bob/
+find test/bob/
 ```
 In my Pod this returns:
 ```

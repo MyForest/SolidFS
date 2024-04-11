@@ -1,8 +1,9 @@
 {
   "name": "Python SolidFS",
   "build": {
-    "dockerfile": "Dockerfile",
-    "context": "../"
+    "dockerfile": "../Dockerfile",
+    "context": "../",
+    "target":"devcontainer"
   },
   "runArgs": [
     "--cap-add=SYS_ADMIN",

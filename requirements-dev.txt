@@ -1,5 +1,5 @@
-black
-mypy
-isort
-pytest
-pytest-xdist
+black==24.3.0
+mypy==1.9.0
+isort==5.13.2
+pytest==8.1.1
+pytest-xdist==3.5.0

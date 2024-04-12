@@ -1,6 +1,6 @@
-fuse-python
-rdflib
-requests
-structlog
-python-json-logger
-python-magic
+fuse-python==1.0.7
+rdflib==7.0.0
+requests==2.31.0
+structlog==24.1.0
+python-json-logger==2.0.7
+python-magic==0.4.27

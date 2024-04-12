@@ -1,28 +1,26 @@
 #!/usr/bin/env python3
 import email.utils
 import errno
-import os
 import stat
 import uuid
 from stat import S_IFDIR, S_IFREG
-from time import time
-from typing import Generator, Iterable
+from typing import Generator
 
 import fuse
 import magic
 import structlog
 from fuse import Fuse
-from rdflib import Graph
 from rdflib.term import URIRef
 
 from app_logging import AppLogging
 from solid_request import SolidRequest
 from solid_resource import Container, Resource, ResourceStat, URIRefHelper
+from solidfs_resource_hierarchy import SolidResourceHierarchy
 
 fuse.fuse_python_api = (0, 2)
 
 
-class Solid(Fuse):
+class SolidFS(Fuse):
     def __init__(self, *args, **kw):
         session_identifier = uuid.uuid4().hex
         self.__logger = structlog.getLogger(self.__class__.__name__).bind(session_identifier=session_identifier)
@@ -30,111 +28,36 @@ class Solid(Fuse):
 
         Fuse.__init__(self, *args, **kw)
         self.fd = 0
-        self.root: Container | None = None
+        self.hierarchy = SolidResourceHierarchy(self.requestor)
 
-        self.now = time()
-
-    def get_root(self) -> Container:
-        if self.root is None:
-            base_url = os.environ.get("SOLIDFS_BASE_URL")
-            if base_url is None:
-                self.__logger.exception("Please set the 'SOLIDFS_BASE_URL'")
-                raise Exception("Please set the 'SOLIDFS_BASE_URL'")
-            self.__logger.info("Establishing root", base_url=base_url)
-            self.root = Container(URIRef(base_url) + "/", ResourceStat(mode=S_IFDIR | 0o777, nlink=2))
-
-        return self.root
-
-    def check_path_is_safe(self, path: str) -> None:
+    @staticmethod
+    def check_path_is_safe(path: str) -> None:
+        """Apply simple checks to the path to stop common problems. This does not ensure it will be OK on the Solid server."""
         assert isinstance(path, str)
         assert path.startswith("/")
         assert len(path) < 1024
 
-    def get_resource_by_path(self, relative_path: str, start: Resource | None = None) -> Resource:
-        """Map a file-system path, delimited by /, to a Resource's URI"""
-
-        if relative_path in ["/", ""]:
-            return self.get_root()
-
-        if start is None:
-            start = self.get_root()
-
-        if relative_path == ".":
-            return start
-
-        parts = relative_path.lstrip("/").split("/")
-        current = start
-        for part in parts:
-            if not isinstance(current, Container):
-                raise Exception(f"{current.uri} is not a Container")
-
-            # Hack because the path does not come with a slash from the OS
-            expected_urls = [current.uri + part, current.uri + part + "/"]
-            found = False
-            for contained in self.get_contained_resources(current):
-                if contained.uri in expected_urls:
-                    current = contained
-                    found = True
-                    break
-            if not found:
-                raise Exception(f"{part} not found in {current.uri} when looking for {relative_path} from {start.uri}")
-
-        return current
-
-    def get_contained_resources(self, container: Container) -> Iterable[Resource]:
-
-        with structlog.contextvars.bound_contextvars(resource_url=container.uri):
-            if container.contains is None:
-                quoted_url = URIRefHelper.to_quoted_url(container.uri)
-                self.__logger.debug("Determining contents of Container", quoted_url=quoted_url)
-
-                response = self.requestor.request("GET", quoted_url, headers={"Accept": "text/turtle,application/rdf+xml,application/ld+json"})
-
-                if response.status_code == 200:
-                    content = response.content
-                    self.__logger.debug("Parsing Container RDF", size=len(content))
-                    g = Graph()
-                    g.parse(data=content, publicID=container.uri)
-                    # The URIs in the graph are quoted, but our in-memory URIs are UTF-8 encoded strings in URIRefs which aren't quoted
-                    ldp_contained = list(g.objects(URIRef(URIRefHelper.to_quoted_url(container.uri)), URIRef("http://www.w3.org/ns/ldp#contains")))
-
-                    items = set[Resource]()
-                    self.__logger.debug("Contains", size=len(ldp_contained))
-                    for quoted_resource in ldp_contained:
-                        if not isinstance(quoted_resource, URIRef):
-                            raise Exception(f"Expected {quoted_resource} to be a URIRef but it was {type(quoted_resource)}")
-                        resource = URIRefHelper.from_quoted_url(quoted_resource.toPython())
-                        self.__logger.debug("Discovered contained Resource", uri=resource)
-                        if str(resource).endswith("/"):
-                            items.add(Container(resource, ResourceStat(mode=stat.S_IFDIR | 0o755, nlink=2)))
-                        else:
-                            items.add(Resource(resource, ResourceStat(size=1000000, mode=stat.S_IFREG | 0o444)))
-
-                    container.contains = items
-                else:
-                    raise Exception(f"Error fetching Solid resource {container.uri} with code {response.status_code}: {response.text}")
-
-            return container.contains
-
     def chmod(self, path, mode):
-        self.__logger.warning("Changing mode is not supported", path=path)
+        SolidFS.check_path_is_safe(path)
+        self.__logger.warning("Changing mode is not supported", path=path, mode=mode)
         return 0
 
     def chown(self, path, uid, gid):
-        self.__logger.warning("Changing owner is not supported", path=path)
+        SolidFS.check_path_is_safe(path)
+        self.__logger.warning("Changing owner is not supported", path=path, uid=uid, gid=gid)
         return 0
 
     def create(self, path: str, mode, umask) -> int:
         """Create a Resource"""
 
-        self.check_path_is_safe(path)
+        SolidFS.check_path_is_safe(path)
 
         parent, name = path.rsplit("/", 1)
-        container = self.get_resource_by_path(parent)
+        container = self.hierarchy.get_resource_by_path(parent)
         if not isinstance(container, Container):
             raise Exception(f"Parent {container} is not a Solid Container")
 
-        # Default to an being unknown (https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types)
+        # Default to an being unknown content type (https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types)
         content_type = "application/octet-stream"
 
         headers = {"Link": '<http://www.w3.org/ns/ldp#Resource>; rel="type"', "Content-Type": content_type}
@@ -162,33 +85,7 @@ class Solid(Fuse):
 
         return -errno.ENOENT
 
-    def get_parent(self, path: str) -> Container:
-        parts = path.split("/")
-        container = self.get_resource_by_path("/".join(parts[:-1]))
-        if not isinstance(container, Container):
-            raise Exception(f"Parent of {path} is not a Container. It is at {container.uri}")
-        return container
-
-    def getattr(self, path: str) -> fuse.Stat:
-        self.check_path_is_safe(path)
-
-        with structlog.contextvars.bound_contextvars(path=path):
-            self.__logger.info("Getting attributes")
-            try:
-                resource = self.get_resource_by_path(path)
-                with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
-                    self.__logger.info("Reviewing Resource stats")
-                    if resource.stat.st_mtime == 0:
-                        try:
-                            self.refresh_resource_stat(resource)
-                        except:
-                            self.__logger.exception("Refresh Resource stat")
-
-                return resource.stat
-            except:
-                return -errno.ENOENT
-
-    def refresh_resource_stat(self, resource: Resource) -> None:
+    def _refresh_resource_stat(self, resource: Resource) -> None:
 
         response = self.requestor.request(
             "HEAD",
@@ -222,18 +119,36 @@ class Solid(Fuse):
                 pass
             resource.stat.st_mode = resource_mode
 
+    def getattr(self, path: str) -> fuse.Stat:
+        SolidFS.check_path_is_safe(path)
+
+        with structlog.contextvars.bound_contextvars(path=path):
+            self.__logger.debug("Getting attributes")
+            try:
+                resource = self.hierarchy.get_resource_by_path(path)
+                with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
+                    self.__logger.debug("Reviewing Resource stats")
+                    if resource.stat.st_mtime == 0:
+                        try:
+                            self._refresh_resource_stat(resource)
+                        except:
+                            self.__logger.exception("Refresh Resource stat")
+
+                return resource.stat
+            except:
+                return -errno.ENOENT
+
     def mkdir(self, path: str, mode) -> int:
         """Create a Container"""
         # TODO: Understand nlink
         # TODO: Use mode
 
-        self.check_path_is_safe(path)
+        SolidFS.check_path_is_safe(path)
         assert not path.endswith("/")
 
         with structlog.contextvars.bound_contextvars(path=path):
-            # resource = self.get_resource_by_path(path)
             parent, name = path.rsplit("/", 1)
-            parent_container = self.get_resource_by_path(parent)
+            parent_container = self.hierarchy.get_resource_by_path(parent)
             if not isinstance(parent_container, Container):
                 raise Exception(f"Parent of {path} is not a Container. It is at {parent_container.uri}")
 
@@ -265,15 +180,15 @@ class Solid(Fuse):
             return -errno.ENOENT
 
     def open(self, path: str, flags):
-        self.check_path_is_safe(path)
+        SolidFS.check_path_is_safe(path)
         return 0
 
     def read(self, path: str, size: int, offset: int) -> bytes:
 
-        self.check_path_is_safe(path)
+        SolidFS.check_path_is_safe(path)
 
         with structlog.contextvars.bound_contextvars(path=path):
-            resource = self.get_resource_by_path(path)
+            resource = self.hierarchy.get_resource_by_path(path)
             content_to_return = resource.content.get()
             if not content_to_return is None:
                 self.__logger.debug(f"Retrieved content from cache", size=len(content_to_return))
@@ -298,18 +213,18 @@ class Solid(Fuse):
             return content_to_return
 
     def readdir(self, path: str, offset) -> Generator[fuse.Direntry, None, None]:
-        self.check_path_is_safe(path)
+        SolidFS.check_path_is_safe(path)
 
         with structlog.contextvars.bound_contextvars(path=path):
 
             self.__logger.debug(f"Reading dir")
 
-            resource = self.get_resource_by_path(path)
+            resource = self.hierarchy.get_resource_by_path(path)
             if not isinstance(resource, Container):
                 raise Exception(f"{resource.uri} is not a Solid Container so we cannot 'readdir' on it")
 
             with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
-                contained_resources = self.get_contained_resources(resource)
+                contained_resources = self.hierarchy.get_contained_resources(resource)
                 yield from [fuse.Direntry(r) for r in [".", ".."]]
 
                 for contained_resource in contained_resources:
@@ -326,11 +241,11 @@ class Solid(Fuse):
                     assert dir_entry.type
                     yield dir_entry
 
-    def rename(self, source, target) -> int:
-        self.check_path_is_safe(source)
-        self.check_path_is_safe(target)
+    def rename(self, source: str, target: str) -> int:
+        SolidFS.check_path_is_safe(source)
+        SolidFS.check_path_is_safe(target)
 
-        source_resource = self.get_resource_by_path(source)
+        source_resource = self.hierarchy.get_resource_by_path(source)
         content = self.read(source, source_resource.stat.st_size, 0)
 
         self.create(target, source_resource.stat.st_mode, None)
@@ -339,26 +254,27 @@ class Solid(Fuse):
         return 0
 
     def rmdir(self, path: str):
+        SolidFS.check_path_is_safe(path)
         self.unlink(path)
 
-    def truncate(self, path: str, size):
-        self.check_path_is_safe(path)
-        self.__logger.warning("Truncation is not supported", path=path)
+    def truncate(self, path: str, size: int):
+        SolidFS.check_path_is_safe(path)
+        self.__logger.warning("Truncation is not supported", path=path, size=size)
         return 0
 
     def unlink(self, path: str) -> int:
         """Delete a Resource"""
 
-        self.check_path_is_safe(path)
+        SolidFS.check_path_is_safe(path)
 
         with structlog.contextvars.bound_contextvars(path=path):
-            resource = self.get_resource_by_path(path)
+            resource = self.hierarchy.get_resource_by_path(path)
 
             try:
                 response = self.requestor.request("DELETE", resource.uri.toPython())
 
                 if response.status_code in [200, 204]:  # We don't support 202 yet
-                    parent = self.get_parent(path)
+                    parent = self.hierarchy.get_parent(path)
                     if not parent.contains is None:
                         parent.contains.remove(resource)
                     return 0
@@ -371,18 +287,18 @@ class Solid(Fuse):
             return -errno.ENOENT
 
     def utime(self, path: str, times: tuple[int, int]):
-        self.check_path_is_safe(path)
+        SolidFS.check_path_is_safe(path)
         self.__logger.warning("Unable to set times on Solid Resource", path=path, times=times)
         return 0
 
     def write(self, path: str, buf: bytes, offset: int) -> int:
         """Write a Resource"""
 
-        self.check_path_is_safe(path)
+        SolidFS.check_path_is_safe(path)
         assert isinstance(buf, bytes)
 
         with structlog.contextvars.bound_contextvars(path=path):
-            resource = self.get_resource_by_path(path)
+            resource = self.hierarchy.get_resource_by_path(path)
             existing_content = bytes()
             if offset != 0:
                 existing_content = resource.content.get()
@@ -450,7 +366,7 @@ SolidFS enables a file system interface to a Solid Pod
 """
         + Fuse.fusage
     )
-    server = Solid(version="%prog " + fuse.__version__, usage=usage, dash_s_do="setsingle")
+    server = SolidFS(version="%prog " + fuse.__version__, usage=usage, dash_s_do="setsingle")
 
     server.parser.add_option(mountopt="root", metavar="PATH", default="/data/", help="Surface Pod at PATH [default: %default]")
     server.parse(errex=1)

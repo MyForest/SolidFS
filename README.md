@@ -207,7 +207,7 @@ There is no guidance on this yet.
 With a Pod mounted at `/data/` run:
 
 ```bash
-pytest -n auto test.py
+pytest -n auto test/*.py
 ```
 ```
 ========================================== test session starts ==========================================

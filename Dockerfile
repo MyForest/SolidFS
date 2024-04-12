@@ -14,7 +14,7 @@ RUN mkdir -p /data/
 FROM base AS devcontainer
 COPY requirements-dev.txt .
 RUN python3 -m pip --trusted-host pypi.org install -r requirements-dev.txt
-
+RUN apt-get update && apt-get install -y entr
 
 FROM base AS runtime
 

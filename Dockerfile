@@ -18,15 +18,9 @@ RUN apt-get update && apt-get install -y entr
 
 FROM base AS runtime
 
-COPY app_logging.py .
-COPY cache.py .
-COPY solidfs.py .
-COPY solid_authentication.py .
-COPY solid_request.py .
-COPY solid_resource.py .
-COPY solidfs_resource_hierarchy.py .
+COPY src/*.py src/
 
 # Test the script can run
-RUN ["python3","-u","/app/solidfs.py","-h"]
+RUN ["python3","-u","/app/src/solidfs.py","-h"]
 
-ENTRYPOINT ["python3","-u","/app/solidfs.py","-d", "-f","-s", "/data/"]
+ENTRYPOINT ["python3","-u","/app/src/solidfs.py","-d", "-f","-s", "/data/"]

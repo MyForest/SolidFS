@@ -23,7 +23,7 @@ fuse.fuse_python_api = (0, 2)
 class SolidFS(Fuse):
     def __init__(self, *args, **kw):
         session_identifier = uuid.uuid4().hex
-        self.__logger = structlog.getLogger(self.__class__.__name__).bind(session_identifier=session_identifier)
+        self._logger = structlog.getLogger(self.__class__.__name__).bind(session_identifier=session_identifier)
         self.requestor = SolidRequest(session_identifier)
 
         Fuse.__init__(self, *args, **kw)
@@ -39,12 +39,12 @@ class SolidFS(Fuse):
 
     def chmod(self, path, mode):
         SolidFS.check_path_is_safe(path)
-        self.__logger.warning("Changing mode is not supported", path=path, mode=mode)
+        self._logger.warning("Changing mode is not supported", path=path, mode=mode)
         return 0
 
     def chown(self, path, uid, gid):
         SolidFS.check_path_is_safe(path)
-        self.__logger.warning("Changing owner is not supported", path=path, uid=uid, gid=gid)
+        self._logger.warning("Changing owner is not supported", path=path, uid=uid, gid=gid)
         return 0
 
     def create(self, path: str, mode, umask) -> int:
@@ -52,6 +52,7 @@ class SolidFS(Fuse):
 
         SolidFS.check_path_is_safe(path)
 
+        self._logger.debug("create", path=path, mode=mode, umask=umask)
         parent, name = path.rsplit("/", 1)
         container = self.hierarchy.get_resource_by_path(parent)
         if not isinstance(container, Container):
@@ -65,7 +66,7 @@ class SolidFS(Fuse):
         resource_url = container.uri + URIRef(name)
         with structlog.contextvars.bound_contextvars(resource_url=resource_url):
 
-            self.__logger.info("Creating Solid Resource", parent=parent, name=name, mode=mode, content_type=content_type)
+            self._logger.info("Creating Solid Resource", parent=parent, name=name, mode=mode, content_type=content_type)
             try:
                 # Use PUT so the name on the server matches the requested path
                 response = self.requestor.request("PUT", resource_url.toPython(), headers=headers)
@@ -78,10 +79,10 @@ class SolidFS(Fuse):
                     container.contains.add(new_resource)
                     return 0
 
-                self.__logger.error(f"Error creating Solid Resource on server", status_code=response.status_code, text=response.content, exc_info=True)
+                self._logger.error(f"Error creating Solid Resource on server", status_code=response.status_code, text=response.content, exc_info=True)
 
             except:
-                self.__logger.error(f"Creation request failed for Solid Resource", exc_info=True)
+                self._logger.error(f"Creation request failed for Solid Resource", exc_info=True)
 
         return -errno.ENOENT
 
@@ -101,7 +102,7 @@ class SolidFS(Fuse):
             allowed = response.headers["WAC-Allow"].strip()
             # user="read control write"
             # TODO: Wrong parsing
-            self.__logger.debug("Access modes", allowed=allowed)
+            self._logger.debug("Access modes", allowed=allowed)
             access_modes = allowed.split("=")[-1].replace('"', "").split(" ")
             resource_mode = stat.S_IRWXU  # Don't open up any further | stat.S_IRWXG | stat.S_IRWXO
             if isinstance(resource, Container):
@@ -123,16 +124,16 @@ class SolidFS(Fuse):
         SolidFS.check_path_is_safe(path)
 
         with structlog.contextvars.bound_contextvars(path=path):
-            self.__logger.debug("Getting attributes")
+            self._logger.debug("getattr")
             try:
                 resource = self.hierarchy.get_resource_by_path(path)
                 with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
-                    self.__logger.debug("Reviewing Resource stats")
+                    self._logger.debug("Reviewing Resource stats")
                     if resource.stat.st_mtime == 0:
                         try:
                             self._refresh_resource_stat(resource)
                         except:
-                            self.__logger.exception("Refresh Resource stat")
+                            self._logger.exception("Refresh Resource stat")
 
                 return resource.stat
             except:
@@ -146,6 +147,8 @@ class SolidFS(Fuse):
         SolidFS.check_path_is_safe(path)
         assert not path.endswith("/")
 
+        self._logger.debug("mkdir", path=path, mode=mode)
+
         with structlog.contextvars.bound_contextvars(path=path):
             parent, name = path.rsplit("/", 1)
             parent_container = self.hierarchy.get_resource_by_path(parent)
@@ -156,7 +159,7 @@ class SolidFS(Fuse):
 
                 target_uri = parent_container.uri + URIRef(name + "/")
                 quoted_url = URIRefHelper.to_quoted_url(target_uri)
-                self.__logger.info("Creating Solid Container", target_uri=target_uri, quoted_url=quoted_url)
+                self._logger.info("Creating Solid Container", target_uri=target_uri, quoted_url=quoted_url)
                 headers = {
                     "Link": '<http://www.w3.org/ns/ldp#BasicContainer>; rel="type"',
                     "Content-Type": "text/turtle",
@@ -172,15 +175,16 @@ class SolidFS(Fuse):
 
                         return 0
 
-                    self.__logger.error(f"Error creating Solid Container on server", status_code=response.status_code, text=response.text, exc_info=True)
+                    self._logger.error(f"Error creating Solid Container on server", status_code=response.status_code, text=response.text, exc_info=True)
 
                 except:
-                    self.__logger.error(f"Unable to create Solid Container", exc_info=True)
+                    self._logger.error(f"Unable to create Solid Container", exc_info=True)
 
             return -errno.ENOENT
 
     def open(self, path: str, flags):
         SolidFS.check_path_is_safe(path)
+        self._logger.debug("open", path=path, flags=flags)
         return 0
 
     def read(self, path: str, size: int, offset: int) -> bytes:
@@ -188,12 +192,14 @@ class SolidFS(Fuse):
         SolidFS.check_path_is_safe(path)
 
         with structlog.contextvars.bound_contextvars(path=path):
+            self._logger.debug("read", size=size, offset=offset)
+
             resource = self.hierarchy.get_resource_by_path(path)
             content_to_return = resource.content.get()
             if not content_to_return is None:
-                self.__logger.debug(f"Retrieved content from cache", size=len(content_to_return))
+                self._logger.debug(f"Retrieved content from cache", size=len(content_to_return))
             else:
-                self.__logger.debug(f"Fetching {size} bytes from {resource.uri}")
+                self._logger.debug(f"Fetching {size} bytes from {resource.uri}")
 
                 response = self.requestor.request("GET", resource.uri.toPython(), headers={"Accept": "*"})
 
@@ -206,18 +212,17 @@ class SolidFS(Fuse):
 
             if size:
                 trimmed_content = content_to_return[offset : offset + size]
-                self.__logger.debug("Returning specified number of bytes", size=size, offset=offset, returning_size=len(trimmed_content))
+                self._logger.debug("Returning specified number of bytes", size=size, offset=offset, returning_size=len(trimmed_content))
                 return trimmed_content
 
-            self.__logger.debug("Returning all bytes", size=len(content_to_return))
+            self._logger.debug("Returning all bytes", size=len(content_to_return))
             return content_to_return
 
     def readdir(self, path: str, offset) -> Generator[fuse.Direntry, None, None]:
         SolidFS.check_path_is_safe(path)
 
         with structlog.contextvars.bound_contextvars(path=path):
-
-            self.__logger.debug(f"Reading dir")
+            self._logger.debug("readdir", offset=int)
 
             resource = self.hierarchy.get_resource_by_path(path)
             if not isinstance(resource, Container):
@@ -230,7 +235,7 @@ class SolidFS(Fuse):
                 for contained_resource in contained_resources:
                     # We need to strip the terminating slash off Containers because fuse crashes if they are included
                     name = str(URIRefHelper.relative_to(resource.uri, contained_resource.uri)).rstrip("/")
-                    self.__logger.info("Returning directory entry", name=name, uri=resource.uri)
+                    self._logger.info("Returning directory entry", name=name, uri=resource.uri)
                     dir_entry = fuse.Direntry(name)
 
                     if isinstance(contained_resource, Resource):
@@ -245,6 +250,8 @@ class SolidFS(Fuse):
         SolidFS.check_path_is_safe(source)
         SolidFS.check_path_is_safe(target)
 
+        self._logger.debug("rename", source=source, target=target)
+
         source_resource = self.hierarchy.get_resource_by_path(source)
         content = self.read(source, source_resource.stat.st_size, 0)
 
@@ -255,11 +262,12 @@ class SolidFS(Fuse):
 
     def rmdir(self, path: str):
         SolidFS.check_path_is_safe(path)
+        self._logger.debug("rmdir", path=path)
         self.unlink(path)
 
     def truncate(self, path: str, size: int):
         SolidFS.check_path_is_safe(path)
-        self.__logger.warning("Truncation is not supported", path=path, size=size)
+        self._logger.warning("Truncation is not supported", path=path, size=size)
         return 0
 
     def unlink(self, path: str) -> int:
@@ -267,6 +275,7 @@ class SolidFS(Fuse):
 
         SolidFS.check_path_is_safe(path)
 
+        self._logger.debug("unlink", path=path)
         with structlog.contextvars.bound_contextvars(path=path):
             resource = self.hierarchy.get_resource_by_path(path)
 
@@ -279,16 +288,16 @@ class SolidFS(Fuse):
                         parent.contains.remove(resource)
                     return 0
 
-                self.__logger.error(f"Deleting Solid Resource failed", status_code=response.status_code, text=response.text, exc_info=True)
+                self._logger.error(f"Deleting Solid Resource failed", status_code=response.status_code, text=response.text, exc_info=True)
 
             except:
-                self.__logger.error(f"Unable to delete Solid Resource", exc_info=True)
+                self._logger.error(f"Unable to delete Solid Resource", exc_info=True)
 
             return -errno.ENOENT
 
     def utime(self, path: str, times: tuple[int, int]):
         SolidFS.check_path_is_safe(path)
-        self.__logger.warning("Unable to set times on Solid Resource", path=path, times=times)
+        self._logger.warning("Unable to set times on Solid Resource", path=path, times=times)
         return 0
 
     def write(self, path: str, buf: bytes, offset: int) -> int:
@@ -296,6 +305,7 @@ class SolidFS(Fuse):
 
         SolidFS.check_path_is_safe(path)
         assert isinstance(buf, bytes)
+        self._logger.debug("write", path=path, size=len(buf), offset=offset)
 
         with structlog.contextvars.bound_contextvars(path=path):
             resource = self.hierarchy.get_resource_by_path(path)
@@ -304,11 +314,11 @@ class SolidFS(Fuse):
                 existing_content = resource.content.get()
                 if existing_content is None:
                     try:
-                        self.__logger.info("Reading existing bytes")
+                        self._logger.info("Reading existing bytes")
                         existing_content = self.read(path, 10000000, 0)
-                        self.__logger.info("Read existing bytes", size=len(existing_content))
+                        self._logger.info("Read existing bytes", size=len(existing_content))
                     except:
-                        self.__logger.info("Unable to read existing bytes", exc_info=True)
+                        self._logger.info("Unable to read existing bytes", exc_info=True)
                         existing_content = bytes()
                         pass
                     resource.content.set(existing_content)
@@ -326,10 +336,10 @@ class SolidFS(Fuse):
                 if magic_mime:
                     content_type = magic_mime
             except:
-                self.__logger.warning("Could not determine mime type from bytes")
+                self._logger.warning("Could not determine mime type from bytes")
                 pass
 
-            self.__logger.info(
+            self._logger.info(
                 "Content",
                 content_type=content_type,
                 magic_mime=magic_mime,
@@ -341,19 +351,23 @@ class SolidFS(Fuse):
             headers = {"Content-Type": content_type, "Content-Length": str(len(revised_content))}
 
             try:
-                # If content type varies then Solid server won't alter it's view of the content so we have to DELETE the old content first
-                # Don't use unlink because it will remove meta data
-                response = self.requestor.request("DELETE", resource.uri.toPython(), headers=headers)
+                if offset < 4096:
+                    # If content type varies then some Solid servers won't alter their view of the content so we have to DELETE the old content first
+                    # Don't use unlink because it will remove meta data
+                    response = self.requestor.request("DELETE", resource.uri.toPython(), headers=headers)
+                else:
+                    # Content type is based on a few magic bytes at the start so content after that won't alter the content type
+                    pass
                 response = self.requestor.request("PUT", resource.uri.toPython(), headers=headers, data=revised_content)
 
                 if response.status_code in [201, 204]:
-                    self.__logger.debug("Wrote bytes to Solid server", size=len(revised_content), status_code=response.status_code)
+                    self._logger.debug("Wrote bytes to Solid server", size=len(revised_content), status_code=response.status_code)
                     return len(buf)
 
-                self.__logger.error("Error writing Solid Resource to server", status_code=response.status_code, exc_info=True)
+                self._logger.error("Error writing Solid Resource to server", status_code=response.status_code, exc_info=True)
                 return -1
             except:
-                self.__logger.error("Unable to write Solid Resource", exc_info=True)
+                self._logger.error("Unable to write Solid Resource", exc_info=True)
                 return -1
 
 

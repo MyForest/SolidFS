@@ -16,7 +16,8 @@
         "terminal.integrated.shell.linux": "/bin/bash"
       },
       "extensions": [
-        "ms-python.python"
+        "ms-python.python",
+        "LittleFoxTeam.vscode-python-test-adapter"
       ]
     }
   }

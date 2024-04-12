@@ -257,3 +257,80 @@ def test_create_and_remove_file_with_interesting_content():
             content = source.read()
 
     assert content == insert
+
+
+def test_truncate_to_nothing_when_empty():
+    new_text = "New text"
+
+    with tempfile.NamedTemporaryFile(dir=test_root_folder, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".ttl") as temp_file:
+
+        temp_file.truncate(0)
+        temp_file.write(new_text)
+        temp_file.flush()
+
+        with open(temp_file.name) as source:
+            content = source.read()
+            assert content == new_text
+
+
+def test_truncate_to_nothing():
+    old_text = "Original text"
+    new_text = "New text"
+
+    with tempfile.NamedTemporaryFile(dir=test_root_folder, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".ttl") as temp_file:
+        temp_file.write(old_text)
+        temp_file.flush()
+
+        with open(temp_file.name) as source:
+            content = source.read()
+            assert content == old_text
+
+        temp_file.truncate(0)
+        temp_file.write(new_text)
+        temp_file.flush()
+
+        with open(temp_file.name) as source:
+            content = source.read()
+            assert content == new_text
+
+
+def test_truncate_to_something():
+    old_text = "Original text"
+    new_text = "New text"
+    truncate_size = 4
+    with tempfile.NamedTemporaryFile(dir=test_root_folder, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".ttl") as temp_file:
+        temp_file.write(old_text)
+        temp_file.flush()
+
+        with open(temp_file.name) as source:
+            content = source.read()
+            assert content == old_text
+
+        temp_file.truncate(truncate_size)
+        temp_file.write(new_text)
+        temp_file.flush()
+
+        with open(temp_file.name) as source:
+            content = source.read()
+            assert content == old_text[:truncate_size] + new_text
+
+
+def test_replace_with_different_content_type():
+    text_plain = "Plain text"
+    text_html = "<html><head><title>HTML</title></head></html>"
+
+    with tempfile.NamedTemporaryFile(dir=test_root_folder, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".ttl") as temp_file:
+        temp_file.write(text_plain)
+        temp_file.flush()
+
+        with open(temp_file.name) as source:
+            content = source.read()
+            assert content == text_plain
+
+        temp_file.truncate(0)
+        temp_file.write(text_html)
+        temp_file.flush()
+
+        with open(temp_file.name) as source:
+            content = source.read()
+            assert content == text_html

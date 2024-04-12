@@ -286,8 +286,38 @@ class SolidFS(Fuse):
         self.unlink(path)
 
     def truncate(self, path: str, size: int):
+        """Change the size of a file"""
+
+        # http://libfuse.github.io/doxygen/structfuse__operations.html#a73ddfa101255e902cb0ca25b40785be8
+
         SolidFS.check_path_is_safe(path)
-        self._logger.warning("Truncation is not supported", path=path, size=size)
+        assert not path.endswith("/")
+        assert size >= 0
+        self._logger.debug("truncate", path=path, size=size)
+        resource = self.hierarchy.get_resource_by_path(path)
+
+        if size:
+            if resource.content.get() is None:
+                self.read(path, size, 0)
+            content = resource.content.get()
+            if content is None:
+                raise Exception(f"Resource content for {resource.uri} is missing")
+
+            if len(content) < size:
+                raise Exception(f"Unable to set size of {resource.uri} to {size} as there is only {len(content)} bytes of content to put in it")
+            current_size = len(content)
+        else:
+            # We don't have an opinion about the current information
+            # There will be a bug later here when someone tries to stop it writing when the target is already zero-length but it only looks like it's zero-length but is in fact unknown so the current bytes will stay there
+            content = bytes()
+            current_size = -1
+
+        if size != current_size:
+            new_content = content[:size]
+            resource.content.set(new_content)
+            resource.stat.st_size = size
+            # Don't change the content type
+            self.write(path, new_content, 0)
         return 0
 
     def unlink(self, path: str) -> int:
@@ -351,16 +381,20 @@ class SolidFS(Fuse):
             resource.stat.st_size = len(revised_content)
 
             previous_content_type = resource.content_type
-            if offset < 1024:
-                try:
-                    magic_mime = magic.from_buffer(revised_content[:1024], mime=True)
-                    if magic_mime:
-                        resource.content_type = magic_mime
-                except:
-                    self._logger.warning("Could not determine mime type from bytes")
+            if resource.stat.st_size:
+                if offset < 1024:
+                    try:
+                        magic_mime = magic.from_buffer(revised_content[:1024], mime=True)
+                        if magic_mime:
+                            resource.content_type = magic_mime
+                    except:
+                        self._logger.warning("Could not determine mime type from bytes")
+                        pass
+                else:
+                    # content type is based on just a few bytes so it won't change if writing later bytes
                     pass
             else:
-                # content type is based on just a few bytes so it won't change if writing later bytes
+                # content type can't be determined when there is no content so leave it unchanged
                 pass
 
             self._logger.info(

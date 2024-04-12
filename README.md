@@ -11,9 +11,53 @@ Some of the limitations are:
 
 There is no plan to resolve any one of the specific shortcomings as at 2024-04-11.
 
+## Warning
+
+There is no warranty with this tool and it may break your content on your machine, in your Pod or both. At this time you should only use this tool if you can cope with the consequences of that.
+
 ## Running
 
 It's currently very hard to run this from source. You may find the Docker approach the easiest if you're unsure of what to do.
+
+### Configuration
+
+In the `.env` file there are a number of settings.
+
+#### SOLIDFS_BASE_URL
+
+This is the most important setting.
+
+You can [get a Pod](https://solidproject.org/users/get-a-pod) from many places, but this tool is only tested with [PodSpaces](https://start.inrupt.com/) so far.
+
+The value should be something like this:
+
+```
+https://storage.inrupt.com/ecce92aa-5fa3-4333-8883-4917c405d4d5
+```
+
+Note there is no trailing slash.
+
+Interestingly you can also mount a Container deeper within a Pod. This is useful if you only have access to a small part of a Pod. In that case you'd have a value such as this:
+
+```
+https://storage.inrupt.com/ecce92aa-5fa3-4333-8883-4917c405d4d5/some/part/for/me
+```
+
+#### SOLIDFS_CLIENT_ID and SOLIDFS_CLIENT_SECRET
+
+At the moment this tool uses client credentials.
+
+If you are using PodSpaces you can generate them in the [OpenID Broker Registration page](https://login.inrupt.com/registration.html). Of course you should keep them secret because they allow something with those credentials to do anything you can do.
+
+#### SOLIDFS_TOKEN_URL
+
+This is the endpoint where the credentials are exchanged for an access token. If you're using PodSpaces then just use `https://login.inrupt.com/token`
+
+#### SOLIDFS_CONTENT_CACHING
+
+There is a very rudimentary caching mechanism in the tool. This turns it on with a `1` or off with anything else, for example `0` or if you don't set it.
+
+A very conspicuous side-effect of the caching is that you won't see changes made by other things to the Pod unless you restart SolidFS.
 
 ### Python
 

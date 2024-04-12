@@ -24,6 +24,7 @@ COPY solidfs.py .
 COPY solid_authentication.py .
 COPY solid_request.py .
 COPY solid_resource.py .
+COPY solidfs_resource_hierarchy.py .
 
 # Test the script can run
 RUN ["python3","-u","/app/solidfs.py","-h"]

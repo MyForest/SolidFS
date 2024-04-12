@@ -94,6 +94,25 @@ class SolidFS(Fuse):
             headers={"Accept": "*"},
         )
 
+        # Typical Headers
+        # "Accept-Patch",
+        # "Accept-Post",
+        # "Accept-Put",
+        # "Allow",
+        # "Cache-Control",
+        # "Connection",
+        # "Content-Type",
+        # "Date",
+        # "ETag",
+        # "Last-Modified",
+        # "Link",
+        # "Strict-Transport-Security",
+        # "Vary",
+        # "WAC-Allow"
+
+        if "Content-Type" in response.headers:
+            resource.content_type = response.headers["Content-Type"]
+
         if "Last-Modified" in response.headers:
             last_modified = email.utils.parsedate_to_datetime(response.headers["Last-Modified"])
             resource.stat.st_mtime = int(last_modified.timestamp())
@@ -168,7 +187,7 @@ class SolidFS(Fuse):
                 try:
                     response = self.requestor.request("PUT", quoted_url, headers=headers)
                     if response.status_code in [201, 204]:
-                        new_container = Container(target_uri, ResourceStat(mode=S_IFDIR | 0o777, nlink=2))
+                        new_container = Container(target_uri, ResourceStat(mode=S_IFDIR | 0o777, nlink=2), content_type="text/turtle")
                         if parent_container.contains is None:
                             parent_container.contains = set()
                         parent_container.contains.add(new_container)
@@ -206,6 +225,7 @@ class SolidFS(Fuse):
                 if response.status_code == 200:
                     content_to_return = response.content
                     resource.content.set(content_to_return)
+                    resource.content_type = response.headers["Content-Type"]
                     resource.stat.st_size = len(content_to_return)
                 else:
                     raise Exception(f"Error reading Solid resource {resource.uri} with code {response.status_code}: {response.text}")
@@ -330,34 +350,37 @@ class SolidFS(Fuse):
             resource.content.set(revised_content)
             resource.stat.st_size = len(revised_content)
 
-            content_type = "application/octet-stream"
-            try:
-                magic_mime = magic.from_buffer(revised_content, mime=True)
-                if magic_mime:
-                    content_type = magic_mime
-            except:
-                self._logger.warning("Could not determine mime type from bytes")
+            previous_content_type = resource.content_type
+            if offset < 1024:
+                try:
+                    magic_mime = magic.from_buffer(revised_content[:1024], mime=True)
+                    if magic_mime:
+                        resource.content_type = magic_mime
+                except:
+                    self._logger.warning("Could not determine mime type from bytes")
+                    pass
+            else:
+                # content type is based on just a few bytes so it won't change if writing later bytes
                 pass
 
             self._logger.info(
                 "Content",
-                content_type=content_type,
-                magic_mime=magic_mime,
+                previous_content_type=previous_content_type,
+                content_type=resource.content_type,
                 offset=offset,
                 extra_content_length=extra_content_length,
                 previous_length=previous_length,
                 new_content_length=resource.stat.st_size,
             )
-            headers = {"Content-Type": content_type, "Content-Length": str(len(revised_content))}
+            headers = {"Content-Type": resource.content_type, "Content-Length": str(len(revised_content))}
 
             try:
-                if offset < 4096:
+                if resource.content_type != previous_content_type:
                     # If content type varies then some Solid servers won't alter their view of the content so we have to DELETE the old content first
                     # Don't use unlink because it will remove meta data
-                    response = self.requestor.request("DELETE", resource.uri.toPython(), headers=headers)
-                else:
-                    # Content type is based on a few magic bytes at the start so content after that won't alter the content type
-                    pass
+                    self._logger.info("Deleting due to content type changing", previous_content_type=previous_content_type, content_type=resource.content_type)
+                    response = self.requestor.request("DELETE", resource.uri.toPython())
+
                 response = self.requestor.request("PUT", resource.uri.toPython(), headers=headers, data=revised_content)
 
                 if response.status_code in [201, 204]:

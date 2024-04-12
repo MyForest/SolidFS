@@ -46,6 +46,7 @@ class Resource:
     uri: URIRef
     stat: ResourceStat
     content: Cache = field(default_factory=CacheFactory.get_cache)
+    content_type: str = "application/octet-stream"
 
     def __hash__(self) -> int:
         return self.uri.__hash__()

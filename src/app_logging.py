@@ -1,9 +1,31 @@
 import logging
 
 import structlog
+from opentelemetry import trace
 
 
 class AppLogging:
+
+    @staticmethod
+    def _add_open_telemetry_spans(_, __, event_dict):
+        # See https://www.structlog.org/en/stable/frameworks.html#opentelemetry
+
+        span = trace.get_current_span()
+        if not span.is_recording():
+            # event_dict[0][0]["span"] = None
+            return event_dict
+
+        ctx = span.get_span_context()
+        parent = getattr(span, "parent", None)
+
+        dictionary_to_update = event_dict[0][0]
+
+        dictionary_to_update["span_id"] = hex(ctx.span_id)
+        dictionary_to_update["trace_id"] = hex(ctx.trace_id)
+        if parent:
+            dictionary_to_update["parent_span_id"] = hex(parent.span_id)
+
+        return event_dict
 
     @staticmethod
     def configure_logging():
@@ -18,6 +40,7 @@ class AppLogging:
             + [
                 structlog.contextvars.merge_contextvars,
                 structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+                AppLogging._add_open_telemetry_spans,
             ],
             logger_factory=structlog.stdlib.LoggerFactory(),
             cache_logger_on_first_use=True,

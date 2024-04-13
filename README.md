@@ -227,6 +227,11 @@ drwx------@    - root 13 Apr 02:44 test
 
 There is no guidance on this yet.
 
+### Using Values in structlog Context
+
+1. Only bind to values that are safe.
+2. Don't include security-sensitive information in logs, such as access tokens or headers that contain them.
+3. 
 
 ## Testing
 

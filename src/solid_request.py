@@ -18,7 +18,7 @@ class SolidRequest:
 
     def request(self, method: str, url: str, extra_headers: dict[str, str] = {}, data: bytes | None = None) -> requests.Response:
 
-        headers = self.__common_headers | self._get_auth_headers() | Tracing._get_trace_headers() | extra_headers
+        headers = self.__common_headers | self._get_auth_headers() | Tracing.get_trace_headers() | extra_headers
 
         with structlog.contextvars.bound_contextvars(method=method, url=url, headers_supplied=sorted(headers.keys())):
 

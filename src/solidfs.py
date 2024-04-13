@@ -19,7 +19,7 @@ from solid_path_validation import SolidPathValidation
 from solid_request import SolidRequest
 from solid_resource import Container, Resource, ResourceStat, URIRefHelper
 from solidfs_resource_hierarchy import PathNotFoundException, SolidResourceHierarchy
-from tracing import traced
+from tracing import Tracing
 
 fuse.fuse_python_api = (0, 2)
 
@@ -38,7 +38,7 @@ class SolidFS(Fuse):
         self.fd = 0
         self.hierarchy = SolidResourceHierarchy(self.requestor)
 
-    @traced
+    @Tracing.traced
     def chmod(self, path: str, mode: int) -> int:
         validation_code = SolidPathValidation.get_path_validation_result_code(path)
         if validation_code:
@@ -47,7 +47,7 @@ class SolidFS(Fuse):
         self._logger.warning("Changing mode is not supported", path=path, mode=mode)
         return 0
 
-    @traced
+    @Tracing.traced
     def chown(self, path, uid, gid) -> int:
         validation_code = SolidPathValidation.get_path_validation_result_code(path)
         if validation_code:
@@ -56,7 +56,7 @@ class SolidFS(Fuse):
         self._logger.warning("Changing owner is not supported", path=path, uid=uid, gid=gid)
         return 0
 
-    @traced
+    @Tracing.traced
     def create(self, path: str, mode, umask) -> int:
         """Create a Resource"""
         validation_code = SolidPathValidation.get_path_validation_result_code(path)
@@ -153,7 +153,7 @@ class SolidFS(Fuse):
                 pass
             resource.stat.st_mode = resource_mode
 
-    @traced
+    @Tracing.traced
     def getattr(self, path: str) -> fuse.Stat | int:
         validation_code = SolidPathValidation.get_path_validation_result_code(path)
         if validation_code:
@@ -179,7 +179,7 @@ class SolidFS(Fuse):
                 self._logger.exception("Unknown exception", exc_info=True)
                 return -errno.EBADMSG
 
-    @traced
+    @Tracing.traced
     def getxattr(self, path: str, name: str, size: int) -> str | int:
         validation_code = SolidPathValidation.get_path_validation_result_code(path)
         if validation_code:
@@ -196,7 +196,7 @@ class SolidFS(Fuse):
 
         return 0
 
-    @traced
+    @Tracing.traced
     def listxattr(self, path: str, size: int) -> list | int:
         validation_code = SolidPathValidation.get_path_validation_result_code(path)
         if validation_code:
@@ -210,7 +210,7 @@ class SolidFS(Fuse):
             return len("".join(attribute_list)) + len(attribute_list)
         return attribute_list
 
-    @traced
+    @Tracing.traced
     def mkdir(self, path: str, mode) -> int:
         """Create a Container"""
         # TODO: Understand nlink
@@ -260,7 +260,7 @@ class SolidFS(Fuse):
 
             return -errno.ENOENT
 
-    @traced
+    @Tracing.traced
     def open(self, path: str, flags) -> int:
         validation_code = SolidPathValidation.get_path_validation_result_code(path)
         if validation_code:
@@ -269,7 +269,7 @@ class SolidFS(Fuse):
         self._logger.debug("open", path=path, flags=flags)
         return 0
 
-    @traced
+    @Tracing.traced
     def read(self, path: str, size: int, offset: int) -> bytes | int:
 
         validation_code = SolidPathValidation.get_path_validation_result_code(path)
@@ -306,7 +306,7 @@ class SolidFS(Fuse):
             self._logger.debug("Returning all bytes", size=len(content_to_return))
             return content_to_return
 
-    @traced
+    @Tracing.traced
     def readdir(self, path: str, offset: int) -> Generator[fuse.Direntry, None, None] | int:
         validation_code = SolidPathValidation.get_path_validation_result_code(path)
         if validation_code:
@@ -337,7 +337,7 @@ class SolidFS(Fuse):
                     assert dir_entry.type
                     yield dir_entry
 
-    @traced
+    @Tracing.traced
     def rename(self, source: str, target: str) -> int:
 
         validation_code = SolidPathValidation.get_path_validation_result_code(source)
@@ -360,7 +360,7 @@ class SolidFS(Fuse):
         self.unlink(source)
         return 0
 
-    @traced
+    @Tracing.traced
     def rmdir(self, path: str):
         validation_code = SolidPathValidation.get_path_validation_result_code(path)
         if validation_code:
@@ -368,7 +368,7 @@ class SolidFS(Fuse):
         self._logger.debug("rmdir", path=path)
         self.unlink(path)
 
-    @traced
+    @Tracing.traced
     def truncate(self, path: str, size: int) -> int:
         """Change the size of a file"""
 
@@ -407,7 +407,7 @@ class SolidFS(Fuse):
             self.write(path, new_content, 0)
         return 0
 
-    @traced
+    @Tracing.traced
     def unlink(self, path: str) -> int:
         """Delete a Resource"""
 
@@ -435,7 +435,7 @@ class SolidFS(Fuse):
 
             return -errno.ENOENT
 
-    @traced
+    @Tracing.traced
     def utime(self, path: str, times: tuple[int, int]) -> int:
         validation_code = SolidPathValidation.get_path_validation_result_code(path)
         if validation_code:
@@ -444,7 +444,7 @@ class SolidFS(Fuse):
         self._logger.warning("Unable to set times on Solid Resource", path=path, times=times)
         return 0
 
-    @traced
+    @Tracing.traced
     def write(self, path: str, buf: bytes, offset: int) -> int:
         """Write a Resource"""
         validation_code = SolidPathValidation.get_path_validation_result_code(path)

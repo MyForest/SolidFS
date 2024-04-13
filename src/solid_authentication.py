@@ -30,7 +30,7 @@ class SolidAuthentication:
                 raise Exception("Please provide the 'SOLIDFS_TOKEN_URL' where the credentials should be sent to get a token")
 
             time_before_request = time()
-            headers = self.__common_headers | Tracing._get_trace_headers()
+            headers = self.__common_headers | Tracing.get_trace_headers()
             self.__logger.debug("Requesting access token", client_id=client_id, token_url=token_url, time_before_request=time_before_request)
             auth_response = requests.post(token_url, headers=headers, auth=(client_id, client_secret), data={"grant_type": "client_credentials"})
 

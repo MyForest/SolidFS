@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import email.utils
 import errno
+import mimetypes
 import stat
 import uuid
 from stat import S_IFDIR, S_IFREG
@@ -59,11 +60,13 @@ class SolidFS(Fuse):
             raise Exception(f"Parent {container} is not a Solid Container")
 
         # Default to an being unknown content type (https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types)
-        content_type = "application/octet-stream"
+        resource_url = container.uri + URIRef(name)
+        new_resource = Resource(resource_url, ResourceStat(0, S_IFREG | 0o777))
+        self._update_mime_type_if_appropriate(0, new_resource, bytes())
+        content_type = new_resource.content_type
 
         headers = {"Link": '<http://www.w3.org/ns/ldp#Resource>; rel="type"', "Content-Type": content_type}
 
-        resource_url = container.uri + URIRef(name)
         with structlog.contextvars.bound_contextvars(resource_url=resource_url):
 
             self._logger.info("Creating Solid Resource", parent=parent, name=name, mode=mode, content_type=content_type)
@@ -72,7 +75,6 @@ class SolidFS(Fuse):
                 response = self.requestor.request("PUT", resource_url.toPython(), headers=headers)
 
                 if response.status_code in [201, 204]:
-                    new_resource = Resource(resource_url, ResourceStat(0, S_IFREG | 0o777))
 
                     if container.contains is None:
                         container.contains = set()
@@ -157,6 +159,30 @@ class SolidFS(Fuse):
                 return resource.stat
             except:
                 return -errno.ENOENT
+
+    def getxattr(self, path: str, name: str, size: int) -> str | int:
+        SolidFS.check_path_is_safe(path)
+
+        self._logger.debug("getxattr", path=path, name=name, size=size)
+        if name == "user.mime_type":
+            resource = self.hierarchy.get_resource_by_path(path)
+            attribute_value = resource.content_type
+            if size == 0:
+                # We are asked for size of the value.
+                return len(attribute_value)
+            return attribute_value
+
+        return 0
+
+    def listxattr(self, path: str, size: int):
+        SolidFS.check_path_is_safe(path)
+        self._logger.debug("listxattr", path=path, size=size)
+        attribute_list = ["user.mime_type"]
+        if size == 0:
+            # We are asked for size of the attr list, i.e. joint size of attrs
+            # plus null separators.
+            return len("".join(attribute_list)) + len(attribute_list)
+        return attribute_list
 
     def mkdir(self, path: str, mode) -> int:
         """Create a Container"""
@@ -381,21 +407,8 @@ class SolidFS(Fuse):
             resource.stat.st_size = len(revised_content)
 
             previous_content_type = resource.content_type
-            if resource.stat.st_size:
-                if offset < 1024:
-                    try:
-                        magic_mime = magic.from_buffer(revised_content[:1024], mime=True)
-                        if magic_mime:
-                            resource.content_type = magic_mime
-                    except:
-                        self._logger.warning("Could not determine mime type from bytes")
-                        pass
-                else:
-                    # content type is based on just a few bytes so it won't change if writing later bytes
-                    pass
-            else:
-                # content type can't be determined when there is no content so leave it unchanged
-                pass
+
+            self._update_mime_type_if_appropriate(offset, resource, revised_content)
 
             self._logger.info(
                 "Content",
@@ -426,6 +439,30 @@ class SolidFS(Fuse):
             except:
                 self._logger.error("Unable to write Solid Resource", exc_info=True)
                 return -1
+
+    def _update_mime_type_if_appropriate(self, offset: int, resource: Resource, revised_content: bytes) -> None:
+        if offset >= 1024:
+            # content type is based on just a few bytes or file extension so it won't change if writing later bytes
+            return
+
+        if resource.stat.st_size:
+            try:
+                magic_mime = magic.from_buffer(revised_content[:1024], mime=True)
+                if magic_mime:
+                    resource.content_type = magic_mime
+            except:
+                self._logger.warning("Could not determine mime type from bytes")
+                pass
+        else:
+            # content type can't be determined when there is no content so leave it unchanged
+            pass
+
+        if resource.content_type == "application/octet-stream":
+            # Maybe on purpose or because we can't identify it
+            # Only use logic at start of file, it's extension won't change and we don't want to undo the guess from magic_mime if it succeeded at the start of the file
+            type_from_extension, encoding_from_extension = mimetypes.guess_type(resource.uri, strict=False)
+            if type_from_extension:
+                resource.content_type = type_from_extension
 
 
 if __name__ == "__main__":

@@ -17,6 +17,13 @@ def test_create_and_remove_folder():
     assert not Path(temp_folder_name).exists()
 
 
+def test_create_and_remove_folder_with_backslash():
+    with tempfile.TemporaryDirectory(dir=test_root_folder, prefix=sys._getframe().f_code.co_name + "\\ is a backslash") as temp_folder_name:
+        assert Path(temp_folder_name).exists()
+
+    assert not Path(temp_folder_name).exists()
+
+
 def test_create_and_remove_folder_with_interesting_name():
     with tempfile.TemporaryDirectory(dir=test_root_folder, prefix=sys._getframe().f_code.co_name + "🦖") as temp_folder_name:
         assert Path(temp_folder_name).exists()

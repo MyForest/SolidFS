@@ -1,23 +1,22 @@
 #!/usr/bin/env python3
 import email.utils
 import errno
-import mimetypes
 import stat
 import uuid
 from stat import S_IFDIR, S_IFREG
 from typing import Generator
 
 import fuse
-import magic
 import structlog
 from fuse import Fuse
 from rdflib.term import URIRef
 
 from app_logging import AppLogging
 from solid_mime import SolidMime
+from solid_path_validation import SolidPathValidation
 from solid_request import SolidRequest
 from solid_resource import Container, Resource, ResourceStat, URIRefHelper
-from solidfs_resource_hierarchy import SolidResourceHierarchy
+from solidfs_resource_hierarchy import PathNotFoundException, SolidResourceHierarchy
 
 fuse.fuse_python_api = (0, 2)
 
@@ -32,27 +31,27 @@ class SolidFS(Fuse):
         self.fd = 0
         self.hierarchy = SolidResourceHierarchy(self.requestor)
 
-    @staticmethod
-    def check_path_is_safe(path: str) -> None:
-        """Apply simple checks to the path to stop common problems. This does not ensure it will be OK on the Solid server."""
-        assert isinstance(path, str)
-        assert path.startswith("/")
-        assert len(path) < 1024
+    def chmod(self, path: str, mode: int) -> int:
+        validation_code = SolidPathValidation.get_path_validation_result_code(path)
+        if validation_code:
+            return -validation_code
 
-    def chmod(self, path, mode):
-        SolidFS.check_path_is_safe(path)
         self._logger.warning("Changing mode is not supported", path=path, mode=mode)
         return 0
 
-    def chown(self, path, uid, gid):
-        SolidFS.check_path_is_safe(path)
+    def chown(self, path, uid, gid) -> int:
+        validation_code = SolidPathValidation.get_path_validation_result_code(path)
+        if validation_code:
+            return -validation_code
+
         self._logger.warning("Changing owner is not supported", path=path, uid=uid, gid=gid)
         return 0
 
     def create(self, path: str, mode, umask) -> int:
         """Create a Resource"""
-
-        SolidFS.check_path_is_safe(path)
+        validation_code = SolidPathValidation.get_path_validation_result_code(path)
+        if validation_code:
+            return -validation_code
 
         self._logger.debug("create", path=path, mode=mode, umask=umask)
         parent, name = path.rsplit("/", 1)
@@ -88,6 +87,7 @@ class SolidFS(Fuse):
             except:
                 self._logger.error(f"Creation request failed for Solid Resource", exc_info=True)
 
+        self._logger.exception("No such path", path=path)
         return -errno.ENOENT
 
     def _refresh_resource_stat(self, resource: Resource) -> None:
@@ -143,8 +143,10 @@ class SolidFS(Fuse):
                 pass
             resource.stat.st_mode = resource_mode
 
-    def getattr(self, path: str) -> fuse.Stat:
-        SolidFS.check_path_is_safe(path)
+    def getattr(self, path: str) -> fuse.Stat | int:
+        validation_code = SolidPathValidation.get_path_validation_result_code(path)
+        if validation_code:
+            return -validation_code
 
         with structlog.contextvars.bound_contextvars(path=path):
             self._logger.debug("getattr")
@@ -159,11 +161,17 @@ class SolidFS(Fuse):
                             self._logger.exception("Refresh Resource stat")
 
                 return resource.stat
-            except:
+            except PathNotFoundException:
+                self._logger.debug("No such path")
                 return -errno.ENOENT
+            except:
+                self._logger.exception("Unknown exception", exc_info=True)
+                return -errno.EBADMSG
 
     def getxattr(self, path: str, name: str, size: int) -> str | int:
-        SolidFS.check_path_is_safe(path)
+        validation_code = SolidPathValidation.get_path_validation_result_code(path)
+        if validation_code:
+            return -validation_code
 
         self._logger.debug("getxattr", path=path, name=name, size=size)
         if name == "user.mime_type":
@@ -176,8 +184,11 @@ class SolidFS(Fuse):
 
         return 0
 
-    def listxattr(self, path: str, size: int):
-        SolidFS.check_path_is_safe(path)
+    def listxattr(self, path: str, size: int) -> list | int:
+        validation_code = SolidPathValidation.get_path_validation_result_code(path)
+        if validation_code:
+            return -validation_code
+
         self._logger.debug("listxattr", path=path, size=size)
         attribute_list = ["user.mime_type"]
         if size == 0:
@@ -191,8 +202,14 @@ class SolidFS(Fuse):
         # TODO: Understand nlink
         # TODO: Use mode
 
-        SolidFS.check_path_is_safe(path)
-        assert not path.endswith("/")
+        validation_code = SolidPathValidation.get_path_validation_result_code(path)
+        if validation_code:
+            return -validation_code
+
+        if path.endswith("/"):
+            # Peculiarly, the path does not typically arrive with a slash at the end and we make assumptions based on that so let's enforce it
+            self._logger.warn("Unexpected slash at end of path", path=path)
+            return errno.ENOTDIR
 
         self._logger.debug("mkdir", path=path, mode=mode)
 
@@ -229,14 +246,19 @@ class SolidFS(Fuse):
 
             return -errno.ENOENT
 
-    def open(self, path: str, flags):
-        SolidFS.check_path_is_safe(path)
+    def open(self, path: str, flags) -> int:
+        validation_code = SolidPathValidation.get_path_validation_result_code(path)
+        if validation_code:
+            return -validation_code
+
         self._logger.debug("open", path=path, flags=flags)
         return 0
 
-    def read(self, path: str, size: int, offset: int) -> bytes:
+    def read(self, path: str, size: int, offset: int) -> bytes | int:
 
-        SolidFS.check_path_is_safe(path)
+        validation_code = SolidPathValidation.get_path_validation_result_code(path)
+        if validation_code:
+            return -validation_code
 
         with structlog.contextvars.bound_contextvars(path=path):
             self._logger.debug("read", size=size, offset=offset)
@@ -266,8 +288,10 @@ class SolidFS(Fuse):
             self._logger.debug("Returning all bytes", size=len(content_to_return))
             return content_to_return
 
-    def readdir(self, path: str, offset) -> Generator[fuse.Direntry, None, None]:
-        SolidFS.check_path_is_safe(path)
+    def readdir(self, path: str, offset: int) -> Generator[fuse.Direntry, None, None] | int:
+        validation_code = SolidPathValidation.get_path_validation_result_code(path)
+        if validation_code:
+            return -validation_code
 
         with structlog.contextvars.bound_contextvars(path=path):
             self._logger.debug("readdir", offset=int)
@@ -295,13 +319,21 @@ class SolidFS(Fuse):
                     yield dir_entry
 
     def rename(self, source: str, target: str) -> int:
-        SolidFS.check_path_is_safe(source)
-        SolidFS.check_path_is_safe(target)
+
+        validation_code = SolidPathValidation.get_path_validation_result_code(source)
+        if validation_code:
+            return -validation_code
+
+        validation_code = SolidPathValidation.get_path_validation_result_code(target)
+        if validation_code:
+            return -validation_code
 
         self._logger.debug("rename", source=source, target=target)
 
         source_resource = self.hierarchy.get_resource_by_path(source)
         content = self.read(source, source_resource.stat.st_size, 0)
+        if isinstance(content, int):
+            return -content
 
         self.create(target, source_resource.stat.st_mode, None)
         self.write(target, content, 0)
@@ -309,16 +341,21 @@ class SolidFS(Fuse):
         return 0
 
     def rmdir(self, path: str):
-        SolidFS.check_path_is_safe(path)
+        validation_code = SolidPathValidation.get_path_validation_result_code(path)
+        if validation_code:
+            return -validation_code
         self._logger.debug("rmdir", path=path)
         self.unlink(path)
 
-    def truncate(self, path: str, size: int):
+    def truncate(self, path: str, size: int) -> int:
         """Change the size of a file"""
 
         # http://libfuse.github.io/doxygen/structfuse__operations.html#a73ddfa101255e902cb0ca25b40785be8
 
-        SolidFS.check_path_is_safe(path)
+        validation_code = SolidPathValidation.get_path_validation_result_code(path)
+        if validation_code:
+            return -validation_code
+
         assert not path.endswith("/")
         assert size >= 0
         self._logger.debug("truncate", path=path, size=size)
@@ -351,7 +388,9 @@ class SolidFS(Fuse):
     def unlink(self, path: str) -> int:
         """Delete a Resource"""
 
-        SolidFS.check_path_is_safe(path)
+        validation_code = SolidPathValidation.get_path_validation_result_code(path)
+        if validation_code:
+            return -validation_code
 
         self._logger.debug("unlink", path=path)
         with structlog.contextvars.bound_contextvars(path=path):
@@ -373,15 +412,21 @@ class SolidFS(Fuse):
 
             return -errno.ENOENT
 
-    def utime(self, path: str, times: tuple[int, int]):
-        SolidFS.check_path_is_safe(path)
+    def utime(self, path: str, times: tuple[int, int]) -> int:
+        validation_code = SolidPathValidation.get_path_validation_result_code(path)
+        if validation_code:
+            return -validation_code
+
         self._logger.warning("Unable to set times on Solid Resource", path=path, times=times)
         return 0
 
     def write(self, path: str, buf: bytes, offset: int) -> int:
         """Write a Resource"""
 
-        SolidFS.check_path_is_safe(path)
+        validation_code = SolidPathValidation.get_path_validation_result_code(path)
+        if validation_code:
+            return -validation_code
+
         assert isinstance(buf, bytes)
         self._logger.debug("write", path=path, size=len(buf), offset=offset)
 
@@ -393,7 +438,10 @@ class SolidFS(Fuse):
                 if existing_content is None:
                     try:
                         self._logger.debug("Reading existing bytes")
-                        existing_content = self.read(path, 10000000, 0)
+                        read_result = self.read(path, 10000000, 0)
+                        if isinstance(read_result, int):
+                            return -read_result
+                        existing_content = read_result
                         self._logger.debug("Read existing bytes", size=len(existing_content))
                     except:
                         self._logger.warning("Unable to read existing bytes", exc_info=True)
@@ -442,6 +490,7 @@ class SolidFS(Fuse):
             except:
                 self._logger.error("Unable to write Solid Resource", exc_info=True)
                 return -1
+
 
 if __name__ == "__main__":
     AppLogging.configure_logging()

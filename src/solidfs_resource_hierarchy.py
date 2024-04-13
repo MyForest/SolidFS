@@ -13,6 +13,10 @@ from solid_request import SolidRequest
 from solid_resource import Container, Resource, ResourceStat, URIRefHelper
 
 
+class PathNotFoundException(Exception):
+    pass
+
+
 class SolidResourceHierarchy:
     """A Solid Pod is a Resource hierarchy with Containers representing the branches and non-Containers as the leaves"""
 
@@ -62,7 +66,7 @@ class SolidResourceHierarchy:
                     found = True
                     break
             if not found:
-                raise Exception(f"{part} not found in {current.uri} when looking for {relative_path} from {start.uri}")
+                raise PathNotFoundException(f"'{part}' not found in '{current.uri}' when looking for '{relative_path}' from '{start.uri}'")
 
         return current
 

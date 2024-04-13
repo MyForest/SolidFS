@@ -2,6 +2,7 @@
 import email.utils
 import errno
 import stat
+import sys
 import uuid
 from stat import S_IFDIR, S_IFREG
 from typing import Generator
@@ -9,6 +10,7 @@ from typing import Generator
 import fuse
 import structlog
 from fuse import Fuse
+from opentelemetry.sdk.trace import TracerProvider
 from rdflib.term import URIRef
 
 from app_logging import AppLogging
@@ -20,10 +22,13 @@ from solidfs_resource_hierarchy import PathNotFoundException, SolidResourceHiera
 
 fuse.fuse_python_api = (0, 2)
 
+from opentelemetry import trace
+
 
 class SolidFS(Fuse):
     def __init__(self, *args, **kw):
         session_identifier = uuid.uuid4().hex
+        trace.set_tracer_provider(TracerProvider())
         self._logger = structlog.getLogger(self.__class__.__name__).bind(session_identifier=session_identifier)
         self.requestor = SolidRequest(session_identifier)
 
@@ -73,7 +78,7 @@ class SolidFS(Fuse):
             self._logger.info("Creating Solid Resource", parent=parent, name=name, mode=mode, content_type=content_type)
             try:
                 # Use PUT so the name on the server matches the requested path
-                response = self.requestor.request("PUT", resource_url.toPython(), headers=headers)
+                response = self.requestor.request("PUT", resource_url.toPython(), headers)
 
                 if response.status_code in [201, 204]:
 
@@ -95,7 +100,7 @@ class SolidFS(Fuse):
         response = self.requestor.request(
             "HEAD",
             resource.uri.toPython(),
-            headers={"Accept": "*"},
+            {"Accept": "*"},
         )
 
         # Typical Headers
@@ -144,29 +149,30 @@ class SolidFS(Fuse):
             resource.stat.st_mode = resource_mode
 
     def getattr(self, path: str) -> fuse.Stat | int:
-        validation_code = SolidPathValidation.get_path_validation_result_code(path)
-        if validation_code:
-            return -validation_code
+        with trace.get_tracer(SolidFS.__name__).start_as_current_span(sys._getframe().f_code.co_name):
+            validation_code = SolidPathValidation.get_path_validation_result_code(path)
+            if validation_code:
+                return -validation_code
 
-        with structlog.contextvars.bound_contextvars(path=path):
-            self._logger.debug("getattr")
-            try:
-                resource = self.hierarchy.get_resource_by_path(path)
-                with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
-                    self._logger.debug("Reviewing Resource stats")
-                    if resource.stat.st_mtime == 0:
-                        try:
-                            self._refresh_resource_stat(resource)
-                        except:
-                            self._logger.exception("Refresh Resource stat")
+            with structlog.contextvars.bound_contextvars(path=path):
+                    self._logger.debug(sys._getframe().f_code.co_name)
+                    try:
+                        resource = self.hierarchy.get_resource_by_path(path)
+                        with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
+                            if resource.stat.st_mtime == 0:
+                                self._logger.debug("Refreshing Resource stats")
+                                try:
+                                    self._refresh_resource_stat(resource)
+                                except:
+                                    self._logger.exception("Refresh Resource stat", exc_info=True)
 
-                return resource.stat
-            except PathNotFoundException:
-                self._logger.debug("No such path")
-                return -errno.ENOENT
-            except:
-                self._logger.exception("Unknown exception", exc_info=True)
-                return -errno.EBADMSG
+                        return resource.stat
+                    except PathNotFoundException:
+                        self._logger.debug("No such path")
+                        return -errno.ENOENT
+                    except:
+                        self._logger.exception("Unknown exception", exc_info=True)
+                        return -errno.EBADMSG
 
     def getxattr(self, path: str, name: str, size: int) -> str | int:
         validation_code = SolidPathValidation.get_path_validation_result_code(path)
@@ -230,7 +236,7 @@ class SolidFS(Fuse):
                 }
 
                 try:
-                    response = self.requestor.request("PUT", quoted_url, headers=headers)
+                    response = self.requestor.request("PUT", quoted_url, headers)
                     if response.status_code in [201, 204]:
                         new_container = Container(target_uri, ResourceStat(mode=S_IFDIR | 0o777, nlink=2), content_type="text/turtle")
                         if parent_container.contains is None:
@@ -268,9 +274,11 @@ class SolidFS(Fuse):
             if not content_to_return is None:
                 self._logger.debug(f"Retrieved content from cache", size=len(content_to_return))
             else:
-                self._logger.debug(f"Fetching {size} bytes from {resource.uri}")
+                self._logger.debug(f"Fetching", size=size, uri=resource.uri)
 
-                response = self.requestor.request("GET", resource.uri.toPython(), headers={"Accept": "*"})
+                # Note that we're not using a ranged request because fuse asks for very small chunks and the overhead of fetching them is large
+                # Specifically, the largest read size as at 2024-04-13 is 131072 bytes.
+                response = self.requestor.request("GET", resource.uri.toPython(), {"Accept": "*"})
 
                 if response.status_code == 200:
                     content_to_return = response.content
@@ -294,7 +302,7 @@ class SolidFS(Fuse):
             return -validation_code
 
         with structlog.contextvars.bound_contextvars(path=path):
-            self._logger.debug("readdir", offset=int)
+            self._logger.debug("readdir", offset=offset)
 
             resource = self.hierarchy.get_resource_by_path(path)
             if not isinstance(resource, Container):
@@ -479,7 +487,7 @@ class SolidFS(Fuse):
                     self._logger.info("Deleting due to content type changing", previous_content_type=previous_content_type, content_type=resource.content_type)
                     response = self.requestor.request("DELETE", resource.uri.toPython())
 
-                response = self.requestor.request("PUT", resource.uri.toPython(), headers=headers, data=revised_content)
+                response = self.requestor.request("PUT", resource.uri.toPython(), headers, revised_content)
 
                 if response.status_code in [201, 204]:
                     self._logger.debug("Wrote bytes to Solid server", size=len(revised_content), status_code=response.status_code)

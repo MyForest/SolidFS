@@ -1,5 +1,6 @@
 import requests
 import structlog
+from opentelemetry import trace
 
 from solid_authentication import SolidAuthentication
 
@@ -7,30 +8,46 @@ from solid_authentication import SolidAuthentication
 class SolidRequest:
     def __init__(self, session_identifier: str):
         self.__logger = structlog.getLogger(self.__class__.__name__).bind(session_identifier=session_identifier)
-        self.__common_headers = {"x-request-id": session_identifier, "User-Agent": "SolidFS/v0.0.1"}
+        self.__common_headers = {"Session-Identifier": session_identifier, "User-Agent": "SolidFS/v0.0.1"}
         self.__authentication = SolidAuthentication()
 
-    def __get_auth_token(self):
-        return self.__authentication.authenticate_with_client_credentials()
+    def _get_auth_headers(self) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self.__authentication.authenticate_with_client_credentials()}",
+        }
 
-    def request(self, method: str, url: str, headers: dict[str, str] = {}, data: bytes | None = None) -> requests.Response:
+    @staticmethod
+    def _get_trace_headers() -> dict[str, str]:
 
-        request_headers = (
-            self.__common_headers
-            | {
-                "Authorization": f"Bearer {self.__get_auth_token()}",
-            }
-            | headers
-        )
+        # The X prefix is deprecated: https://datatracker.ietf.org/doc/html/rfc6648
+        trace_headers = {}
 
-        with structlog.contextvars.bound_contextvars(method=method, url=url, headers_supplied=sorted(request_headers.keys())):
+        current_span = trace.get_current_span().get_span_context()
+
+        span_id = current_span.span_id
+        if span_id:
+            trace_headers["X-Request-ID"] = hex(span_id)
+            trace_headers["Request-ID"] = hex(span_id)
+
+        trace_id = current_span.trace_id
+        if trace_id:
+            trace_headers["X-Correlation-ID"] = hex(trace_id)
+            trace_headers["Correlation-ID"] = hex(trace_id)
+
+        return trace_headers
+
+    def request(self, method: str, url: str, extra_headers: dict[str, str] = {}, data: bytes | None = None) -> requests.Response:
+
+        headers = self.__common_headers | self._get_auth_headers() | SolidRequest._get_trace_headers() | extra_headers
+
+        with structlog.contextvars.bound_contextvars(method=method, url=url, headers_supplied=sorted(headers.keys())):
 
             self.__logger.debug("Sending request")
 
             response = requests.request(
                 method,
                 url,
-                headers=request_headers,
+                headers=headers,
                 data=data,
             )
 

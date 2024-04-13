@@ -283,7 +283,7 @@ class SolidFS(Fuse):
                 for contained_resource in contained_resources:
                     # We need to strip the terminating slash off Containers because fuse crashes if they are included
                     name = str(URIRefHelper.relative_to(resource.uri, contained_resource.uri)).rstrip("/")
-                    self._logger.info("Returning directory entry", name=name, uri=resource.uri)
+                    self._logger.debug("Returning directory entry", name=name, uri=resource.uri)
                     dir_entry = fuse.Direntry(name)
 
                     if isinstance(contained_resource, Resource):
@@ -392,11 +392,11 @@ class SolidFS(Fuse):
                 existing_content = resource.content.get()
                 if existing_content is None:
                     try:
-                        self._logger.info("Reading existing bytes")
+                        self._logger.debug("Reading existing bytes")
                         existing_content = self.read(path, 10000000, 0)
-                        self._logger.info("Read existing bytes", size=len(existing_content))
+                        self._logger.debug("Read existing bytes", size=len(existing_content))
                     except:
-                        self._logger.info("Unable to read existing bytes", exc_info=True)
+                        self._logger.warning("Unable to read existing bytes", exc_info=True)
                         existing_content = bytes()
                         pass
                     resource.content.set(existing_content)
@@ -413,7 +413,7 @@ class SolidFS(Fuse):
             # Now we have some content we can adapt the mime type
             SolidMime.update_mime_type_from_content(offset, resource, revised_content)
 
-            self._logger.info(
+            self._logger.debug(
                 "Content",
                 previous_content_type=previous_content_type,
                 content_type=resource.content_type,
@@ -442,31 +442,6 @@ class SolidFS(Fuse):
             except:
                 self._logger.error("Unable to write Solid Resource", exc_info=True)
                 return -1
-
-    def _update_mime_type_if_appropriate(self, offset: int, resource: Resource, revised_content: bytes) -> None:
-        if offset >= 1024:
-            # content type is based on just a few bytes or file extension so it won't change if writing later bytes
-            return
-
-        if resource.stat.st_size:
-            try:
-                magic_mime = magic.from_buffer(revised_content[:1024], mime=True)
-                if magic_mime:
-                    resource.content_type = magic_mime
-            except:
-                self._logger.warning("Could not determine mime type from bytes")
-                pass
-        else:
-            # content type can't be determined when there is no content so leave it unchanged
-            pass
-
-        if resource.content_type == "application/octet-stream":
-            # Maybe on purpose or because we can't identify it
-            # Only use logic at start of file, it's extension won't change and we don't want to undo the guess from magic_mime if it succeeded at the start of the file
-            type_from_extension, encoding_from_extension = mimetypes.guess_type(resource.uri, strict=False)
-            if type_from_extension:
-                resource.content_type = type_from_extension
-
 
 if __name__ == "__main__":
     AppLogging.configure_logging()

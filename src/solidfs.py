@@ -155,24 +155,24 @@ class SolidFS(Fuse):
                 return -validation_code
 
             with structlog.contextvars.bound_contextvars(path=path):
-                    self._logger.debug(sys._getframe().f_code.co_name)
-                    try:
-                        resource = self.hierarchy.get_resource_by_path(path)
-                        with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
-                            if resource.stat.st_mtime == 0:
-                                self._logger.debug("Refreshing Resource stats")
-                                try:
-                                    self._refresh_resource_stat(resource)
-                                except:
-                                    self._logger.exception("Refresh Resource stat", exc_info=True)
+                self._logger.debug(sys._getframe().f_code.co_name)
+                try:
+                    resource = self.hierarchy.get_resource_by_path(path)
+                    with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
+                        if resource.stat.st_mtime == 0:
+                            self._logger.debug("Refreshing Resource stats")
+                            try:
+                                self._refresh_resource_stat(resource)
+                            except:
+                                self._logger.exception("Refresh Resource stat", exc_info=True)
 
-                        return resource.stat
-                    except PathNotFoundException:
-                        self._logger.debug("No such path")
-                        return -errno.ENOENT
-                    except:
-                        self._logger.exception("Unknown exception", exc_info=True)
-                        return -errno.EBADMSG
+                    return resource.stat
+                except PathNotFoundException:
+                    self._logger.debug("No such path")
+                    return -errno.ENOENT
+                except:
+                    self._logger.exception("Unknown exception", exc_info=True)
+                    return -errno.EBADMSG
 
     def getxattr(self, path: str, name: str, size: int) -> str | int:
         validation_code = SolidPathValidation.get_path_validation_result_code(path)

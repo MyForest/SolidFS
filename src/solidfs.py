@@ -14,6 +14,7 @@ from fuse import Fuse
 from rdflib.term import URIRef
 
 from app_logging import AppLogging
+from solid_mime import SolidMime
 from solid_request import SolidRequest
 from solid_resource import Container, Resource, ResourceStat, URIRefHelper
 from solidfs_resource_hierarchy import SolidResourceHierarchy
@@ -62,7 +63,8 @@ class SolidFS(Fuse):
         # Default to an being unknown content type (https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types)
         resource_url = container.uri + URIRef(name)
         new_resource = Resource(resource_url, ResourceStat(0, S_IFREG | 0o777))
-        self._update_mime_type_if_appropriate(0, new_resource, bytes())
+        # The URI doesn't change after creation so we can make an attempt to guess the content type on creation
+        SolidMime.update_mime_type_from_uri(new_resource)
         content_type = new_resource.content_type
 
         headers = {"Link": '<http://www.w3.org/ns/ldp#Resource>; rel="type"', "Content-Type": content_type}
@@ -408,7 +410,8 @@ class SolidFS(Fuse):
 
             previous_content_type = resource.content_type
 
-            self._update_mime_type_if_appropriate(offset, resource, revised_content)
+            # Now we have some content we can adapt the mime type
+            SolidMime.update_mime_type_from_content(offset, resource, revised_content)
 
             self._logger.info(
                 "Content",

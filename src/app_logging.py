@@ -20,10 +20,10 @@ class AppLogging:
 
         dictionary_to_update = event_dict[0][0]
 
-        dictionary_to_update["span_id"] = hex(ctx.span_id)
-        dictionary_to_update["trace_id"] = hex(ctx.trace_id)
+        dictionary_to_update["span_id"] =  trace.format_span_id(ctx.span_id)
+        dictionary_to_update["trace_id"] =  trace.format_trace_id(ctx.trace_id)
         if parent:
-            dictionary_to_update["parent_span_id"] = hex(parent.span_id)
+            dictionary_to_update["parent_span_id"] =  trace.format_span_id(parent.span_id)
 
         return event_dict
 

@@ -66,7 +66,7 @@ We're assuming you are mounting your Solid Pod at `/data/`.
 You may be successful with:
 1. a suitable Python environment with the [requirements](requirements.txt)
 2. set the environment variables mentioned in [.env.sample](.env.sample)
-3. python3 solidfs.py -fd /data/
+3. python3 src/solidfs.py -fd /data/
 
 ### Docker
 
@@ -104,7 +104,7 @@ docker run \
  -fd -o allow_other /data/
 ```
 
-#### Building
+### Building
 
 If you'd like to build the container locally use a command such as this:
 
@@ -157,7 +157,7 @@ In my Pod this returns:
 /data/test/bob/b2o🐝/🦖/🦢/🌳
 ```
 
-### Using Powerful Tools
+### rsync to Replicate Lots of Resources
 
 Here I'm using an existing tool to push some content up to my Pod without writing any new code:
 
@@ -179,23 +179,49 @@ sent 606,817 bytes  received 590 bytes  3,480.84 bytes/sec
 total size is 604,760  speedup is 1.00
 ```
 
+### Clean up a Folder Recursively
+
 Cleaning up:
 
 ```bash
 rm -rf solid/weather/
 ```
 
+### Search Resource Content
+
 Here I'm looking for something in a file:
 
 ```bash
-# grep name solid/profile/card
+$ grep name solid/profile/card
 vcard:organization-name  "MyForest" ;
 foaf:name                "MyForest 🦆" .
 ```
 
+### Visual Studio Code
+
 Here is a graphical tool using the file system mount:
 
  ![Visual Studio Code showing a Pod](docs/pod_in_vscode.png)
+
+### Show Extended Attributes
+
+Using the [extended file attribute](https://en.wikipedia.org/wiki/Extended_file_attributes) support of the file system allows us to report additional properties for Resources. Here we are including the content type which can be seen using the extended attribute tool `exa` which shows the extended attributes as a list under each file:
+
+```
+$ exa -@l
+drwx------@    - root 22 Dec  2023 getting-started
+                                   └── user.mime_type: "text/turtle"
+.rwx------@ 3.2M root 13 Apr 00:24 IMGP2841.JPG
+                                   └── user.mime_type: "image/jpeg"
+drwx------@    - root 12 Apr 23:04 profile
+                                   └── user.mime_type: "text/turtle"
+drwx------@    - root 13 Apr 02:44 test
+                                   └── user.mime_type: "text/turtle"
+.rwx------@  925 root 13 Apr 02:23 test.jpg
+                                   └── user.mime_type: "image/jpeg"
+.rwx------@    1 root 13 Apr 02:24 test.png
+                                   └── user.mime_type: "image/png"
+```
 
 ## Developing
 

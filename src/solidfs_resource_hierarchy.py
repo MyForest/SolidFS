@@ -77,7 +77,7 @@ class SolidResourceHierarchy:
                 quoted_url = URIRefHelper.to_quoted_url(container.uri)
                 self._logger.debug("Determining contents of Container", quoted_url=quoted_url)
 
-                response = self.requestor.request("GET", quoted_url, headers={"Accept": "text/turtle,application/rdf+xml,application/ld+json"})
+                response = self.requestor.request("GET", quoted_url, {"Accept": "text/turtle,application/rdf+xml,application/ld+json"})
 
                 if response.status_code == 200:
                     content = response.content

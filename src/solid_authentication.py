@@ -4,12 +4,15 @@ from time import time
 import requests
 import structlog
 
+from tracing import Tracing
+
 
 class SolidAuthentication:
-    def __init__(self):
+    def __init__(self, session_identifier: str):
         self.__logger = structlog.getLogger(self.__class__.__name__)
         self.cached_token_value = None
         self.cached_token_expiry = None
+        self.__common_headers = {"Session-Identifier": session_identifier, "User-Agent": "SolidFS/v0.0.1"}
 
     def authenticate_with_client_credentials(self):
 
@@ -27,9 +30,9 @@ class SolidAuthentication:
                 raise Exception("Please provide the 'SOLIDFS_TOKEN_URL' where the credentials should be sent to get a token")
 
             time_before_request = time()
-
+            headers = self.__common_headers | Tracing._get_trace_headers()
             self.__logger.debug("Requesting access token", client_id=client_id, token_url=token_url, time_before_request=time_before_request)
-            auth_response = requests.post(token_url, auth=(client_id, client_secret), data={"grant_type": "client_credentials"})
+            auth_response = requests.post(token_url, headers=headers, auth=(client_id, client_secret), data={"grant_type": "client_credentials"})
 
             if auth_response.status_code == 200:
                 result = auth_response.json()

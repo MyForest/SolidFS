@@ -548,7 +548,7 @@ SolidFS enables a file system interface to a Solid Pod
     server.main()
 
 
-def run_websocket_loop_forever(websocket_loop: asyncio.AbstractEventLoop):
+def run_websocket_loop_forever(websocket_loop: asyncio.AbstractEventLoop, completer: asyncio.Future):
     """
     We need to allow fuselib to use it's own threads.
     We need to avoid putting anything on those threads that we want to ensure runs.
@@ -557,7 +557,7 @@ def run_websocket_loop_forever(websocket_loop: asyncio.AbstractEventLoop):
     """
     # Associate the websocket event loop with the thread we've created for it
     asyncio.set_event_loop(websocket_loop)
-    websocket_loop.run_forever()
+    websocket_loop.run_until_complete(completer)
 
 
 if __name__ == "__main__":
@@ -565,7 +565,9 @@ if __name__ == "__main__":
     # We need some sort of Thread executor so we can listen for websocket updates
     with concurrent.futures.ThreadPoolExecutor() as executor:
         websocket_loop = asyncio.new_event_loop()
-        executor.submit(run_websocket_loop_forever, websocket_loop)
+        completer = asyncio.Future()
+        executor.submit(run_websocket_loop_forever, websocket_loop, completer)
         # Now let fuselib have the main thread any other threads it wants, but also keep the executor context so the websocket thread doesn't get stopped
         main(websocket_loop)
-        websocket_loop.close()
+        # When fuselib is done, notify other event loops they should complete too (by using 'run_until_complete')
+        completer.done()

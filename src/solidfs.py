@@ -6,14 +6,12 @@ import errno
 import functools
 import stat
 import uuid
-from collections.abc import Coroutine
 from stat import S_IFDIR, S_IFREG
 from typing import Generator
 
 import fuse
 import structlog
 from fuse import Fuse
-from opentelemetry.sdk.trace import TracerProvider
 from rdflib.term import URIRef
 
 from app_logging import AppLogging
@@ -25,10 +23,6 @@ from solidfs_resource_hierarchy import SolidResourceHierarchy
 from tracing import Tracing
 
 fuse.fuse_python_api = (0, 2)
-
-from opentelemetry import trace
-
-trace.set_tracer_provider(TracerProvider())
 
 
 class Decorators:

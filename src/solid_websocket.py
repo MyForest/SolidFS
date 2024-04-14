@@ -1,11 +1,11 @@
 import asyncio
 import json
-from sys import exc_info
 from typing import Any
 
 import structlog
 import websockets
 
+from http_exception import HTTPStatusCodeToException
 from solid_activity import SolidActivity
 from solid_request import SolidRequest
 from solid_resource import Resource
@@ -22,7 +22,7 @@ class SolidWebsocket:
                 {"Content-Type": "application/json"},
                 json.dumps({"topic": resource.uri}).encode(),
             )
-            requestor.raise_exception_for_failed_requests(response)
+            HTTPStatusCodeToException.raise_exception_for_failed_requests(response.status_code)
             topicSubscriptionInfo = response.json()
 
             # This is the key step to ensure the Coroutine gets run

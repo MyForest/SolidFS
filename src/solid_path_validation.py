@@ -6,14 +6,8 @@ import os
 
 import structlog
 
-from solid_request import (
-    BadRequestException,
-    NoAccessException,
-    NotAcceptableException,
-    RedirectionException,
-    ServerException,
-)
-from solidfs_resource_hierarchy import ResourceNotFoundException
+from http_exception import HTTPStatusCodeException
+from http_to_errno import HTTPToErrNo
 
 
 class SolidPathValidation:
@@ -32,24 +26,9 @@ class SolidPathValidation:
             logger = structlog.getLogger(SolidPathValidation.__name__)
             try:
                 return func(*args, **kwargs)
-            except RedirectionException:
-                logger.debug("Resource has moved")
-                return -errno.EREMCHG
-            except ResourceNotFoundException:
-                logger.debug("No such path")
-                return -errno.ENOENT
-            except NotAcceptableException:
-                logger.debug("Not acceptable")
-                return -errno.ENOTSUP
-            except NoAccessException:
-                logger.debug("No access")
-                return -errno.EACCES
-            except BadRequestException:
-                logger.debug("Bad request")
-                return -errno.EINVAL
-            except ServerException:
-                logger.debug("Server exception")
-                return -errno.EAGAIN
+            except HTTPStatusCodeException as http_exception:
+                error_number = HTTPToErrNo.http_to_errno(http_exception.http_response_code)
+                return -error_number
             except:
                 logger.exception("Unknown exception", exc_info=True)
                 return -errno.EBADMSG

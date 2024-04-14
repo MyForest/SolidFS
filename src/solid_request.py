@@ -1,38 +1,9 @@
 import requests
 import structlog
 
+from http_exception import HTTPStatusCodeToException
 from solid_authentication import SolidAuthentication
 from tracing import Tracing
-
-
-class RedirectionException(Exception):
-    """3xx"""
-
-    pass
-
-
-class BadRequestException(Exception):
-    """4xx"""
-
-    pass
-
-
-class ResourceNotFoundException(BadRequestException):
-    pass
-
-
-class NoAccessException(BadRequestException):
-    pass
-
-
-class NotAcceptableException(BadRequestException):
-    pass
-
-
-class ServerException(Exception):
-    """5xx"""
-
-    pass
 
 
 class SolidRequest:
@@ -63,26 +34,6 @@ class SolidRequest:
 
             self.__logger.debug("Response", headers_returned=sorted(response.headers.keys()), status_code=response.status_code)
 
-        self.raise_exception_for_failed_requests(response)
+            HTTPStatusCodeToException.raise_exception_for_failed_requests(response.status_code)
 
-        return response
-
-    def raise_exception_for_failed_requests(self, response: requests.Response) -> None:
-
-        if response.status_code < 300:
-            return
-
-        if response.status_code >= 300 and response.status_code < 400:
-            raise RedirectionException()
-
-        if response.status_code == 404:
-            raise ResourceNotFoundException()
-
-        if response.status_code in [401, 403]:
-            raise NoAccessException()
-
-        if response.status_code == 406:
-            raise NotAcceptableException()
-
-        if response.status_code >= 400:
-            raise ServerException(f"Unable to refresh resource statistics with response code {response.status_code}")
+            return response

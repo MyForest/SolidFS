@@ -18,6 +18,7 @@ COPY requirements-dev.txt .
 RUN python3 -m pip --trusted-host pypi.org install -r requirements-dev.txt
 RUN apt-get update && apt-get install -y entr
 
+# Do not copy content such as Python source files because the latest files will be available in the development environment
 
 FROM base AS app
 

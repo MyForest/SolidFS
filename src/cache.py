@@ -37,7 +37,7 @@ class CacheFactory:
 
     @staticmethod
     def get_cache() -> Cache:
-        if os.environ.get("SOLIDFS_CONTENT_CACHING") == "1":
-            return ActiveCache()
+        # if os.environ.get("SOLIDFS_CONTENT_CACHING") == "1":
+        #     return ActiveCache()
 
         return NullCache()

@@ -21,8 +21,10 @@ RUN apt-get update && apt-get install -y entr
 
 FROM base AS app
 
+COPY LICENCE .
+COPY README.md .
 COPY src/*.py src/
-
+COPY pyproject.toml .
 
 FROM base as test
 

@@ -3,6 +3,8 @@ from enum import StrEnum
 import structlog
 from rdflib import RDF, Graph, URIRef
 
+from solid_resource import Resource
+
 
 class KnownTypes(StrEnum):
     UPDATE = URIRef("https://www.w3.org/ns/activitystreams#Update")
@@ -11,7 +13,7 @@ class KnownTypes(StrEnum):
 
 class SolidActivity:
     @staticmethod
-    def parse_activity(activity: str):
+    def parse_activity(resource: Resource, activity: str):
 
         logger = structlog.getLogger(SolidActivity.__name__)
 
@@ -24,13 +26,15 @@ class SolidActivity:
         etag_predicate = URIRef("http://www.w3.org/2011/http-headers#etag")
 
         resources = list(g.objects(None, activity_streams_object_predicate))
+        if not resource.uri in resources:
+            raise Exception(f"Unexpected notification for {resources} instead of {resource}")
 
         for type_of_thing in g.objects(None, RDF.type):
             if isinstance(type_of_thing, URIRef):
                 for known in [k for k in KnownTypes if k.value == type_of_thing.toPython()]:
                     with structlog.contextvars.bound_contextvars(activity_type=known):
-                        for resource in resources:
-                            with structlog.contextvars.bound_contextvars(resource_url=resource):
+                        for resource_in_activity in resources:
+                            with structlog.contextvars.bound_contextvars(resource_url=resource_in_activity):
                                 if known == KnownTypes.UPDATE:
                                     logger.info("Should update cache")
 

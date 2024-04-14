@@ -27,16 +27,18 @@ class SolidWebsocket:
 
             # This is the key step to ensure the Coroutine gets run
             # If it's created on another thread it'll get deleted or blocked by fuselib work on those other threads
-            asyncio.run_coroutine_threadsafe(SolidWebsocket._listen_for_websocket_responses(topicSubscriptionInfo), websocket_event_loop)
+            asyncio.run_coroutine_threadsafe(SolidWebsocket._listen_for_websocket_responses(resource, topicSubscriptionInfo), websocket_event_loop)
 
     @staticmethod
-    async def _listen_for_websocket_responses(topicSubscriptionInfo: dict[str, Any]):
+    async def _listen_for_websocket_responses(resource: Resource, topicSubscriptionInfo: dict[str, Any]):
         logger = structlog.getLogger(SolidWebsocket.__name__)
+
+        # with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
         logger.debug("Listening for notifications")
         async for websocket in websockets.connect(topicSubscriptionInfo["endpoint"], subprotocols=[topicSubscriptionInfo["subprotocol"]], ping_interval=50):
             async for message in websocket:
                 try:
-                    SolidActivity.parse_activity(message)
+                    SolidActivity.parse_activity(resource, message)
                 except:
                     logger.warning("Could not parse message", ws_message=message, exc_info=True)
                     pass

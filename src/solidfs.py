@@ -15,12 +15,12 @@ from fuse import Fuse
 from rdflib.term import URIRef
 
 from observability.app_logging import AppLogging
+from observability.tracing import Tracing
 from solid_mime import SolidMime
 from solid_path_validation import SolidPathValidation
 from solid_request import SolidRequest
 from solid_resource import Container, Resource, ResourceStat, URIRefHelper
 from solidfs_resource_hierarchy import SolidResourceHierarchy
-from observability.tracing import Tracing
 
 fuse.fuse_python_api = (0, 2)
 

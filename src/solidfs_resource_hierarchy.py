@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from asyncio import AbstractEventLoop
 import os
 import stat
 from stat import S_IFDIR
@@ -11,16 +12,18 @@ from rdflib.term import URIRef
 
 from solid_request import ResourceNotFoundException, SolidRequest
 from solid_resource import Container, Resource, ResourceStat, URIRefHelper
+from solid_websocket import SolidWebsocket
 
 
 class SolidResourceHierarchy:
     """A Solid Pod is a Resource hierarchy with Containers representing the branches and non-Containers as the leaves"""
 
-    def __init__(self, requestor: SolidRequest):
+    def __init__(self, requestor: SolidRequest, websocket_event_loop:AbstractEventLoop):
         self._logger = structlog.getLogger(self.__class__.__name__)
 
         self.root: Container | None = None
         self.requestor = requestor
+        self.websocket_event_loop = websocket_event_loop
         self.now = time()
 
     def _get_root(self) -> Container:
@@ -91,9 +94,12 @@ class SolidResourceHierarchy:
                         resource = URIRefHelper.from_quoted_url(quoted_resource.toPython())
                         self._logger.debug("Discovered contained Resource", uri=resource)
                         if str(resource).endswith("/"):
-                            items.add(Container(resource, ResourceStat(mode=stat.S_IFDIR | 0o755, nlink=2)))
+                            discovered_resource = Container(resource, ResourceStat(mode=stat.S_IFDIR | 0o755, nlink=2))
                         else:
-                            items.add(Resource(resource, ResourceStat(size=1000000, mode=stat.S_IFREG | 0o444)))
+                            discovered_resource = Resource(resource, ResourceStat(size=1000000, mode=stat.S_IFREG | 0o444))
+
+                        SolidWebsocket.listen_for_notifications(self.requestor, discovered_resource, self.websocket_event_loop)
+                        items.add(discovered_resource)
 
                     container.contains = items
                 else:

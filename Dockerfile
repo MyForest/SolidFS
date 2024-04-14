@@ -32,11 +32,11 @@ FROM base as test
 COPY requirements-dev.txt .
 RUN python3 -m pip --trusted-host pypi.org install -r requirements-dev.txt
 
-# Don't use app as the FROM for testing because that causes a re-install of the dev dependencies every time
+# Don't use "app" as the FROM for testing because that causes a re-install of the dev dependencies every time
 COPY --from=app /app /app
 
-RUN isort --profile=black --check src/
-RUN black --check --line-length=180 src/
+RUN isort --check src/
+RUN black --check src/
 
 # Test the script can run
 RUN ["python3","-u","/app/src/solidfs.py","-h"]

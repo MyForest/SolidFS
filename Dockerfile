@@ -24,7 +24,7 @@ FROM base AS app
 
 COPY LICENCE .
 COPY README.md .
-COPY src/*.py src/
+COPY src/ src/
 COPY pyproject.toml .
 
 FROM base as test

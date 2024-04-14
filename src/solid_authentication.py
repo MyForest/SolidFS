@@ -4,7 +4,7 @@ from time import time
 import requests
 import structlog
 
-from tracing import Tracing
+from observability.tracing import Tracing
 
 
 class SolidAuthentication:

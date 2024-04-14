@@ -3,7 +3,7 @@ import structlog
 
 from http_exception import HTTPStatusCodeToException
 from solid_authentication import SolidAuthentication
-from tracing import Tracing
+from observability.tracing import Tracing
 
 
 class SolidRequest:

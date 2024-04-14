@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-import asyncio
-import concurrent.futures
 import email.utils
 import errno
 import functools
@@ -20,6 +18,7 @@ from solid_mime import SolidMime
 from solid_path_validation import SolidPathValidation
 from solid_request import SolidRequest
 from solid_resource import Container, Resource, ResourceStat, URIRefHelper
+from solid_websocket.solid_websocket import SolidWebsocketDaemon
 from solidfs_resource_hierarchy import SolidResourceHierarchy
 
 fuse.fuse_python_api = (0, 2)
@@ -71,14 +70,10 @@ class SolidFS(Fuse):
         session_identifier = uuid.uuid4().hex
         self._logger = structlog.getLogger(self.__class__.__name__).bind(session_identifier=session_identifier)
         self.requestor = SolidRequest(session_identifier)
+        self.hierarchy = SolidResourceHierarchy(self.requestor)
 
         Fuse.__init__(self, *args, **kw)
         self.fd = 0
-
-    def set_websocket_event_loop(self, websocket_event_loop: concurrent.futures.ThreadPoolExecutor):
-        """A very hacky way to get the event loop where it's needed"""
-        assert not websocket_event_loop is None
-        self.hierarchy = SolidResourceHierarchy(self.requestor, websocket_event_loop)
 
     @Tracing.traced
     @SolidPathValidation.validate_path
@@ -531,8 +526,9 @@ class SolidFS(Fuse):
         return -errno.EBADMSG
 
 
-def main(websocket_event_loop):
+if __name__ == "__main__":
     AppLogging.configure_logging()
+    SolidWebsocketDaemon().start()
 
     usage = (
         """
@@ -541,33 +537,9 @@ SolidFS enables a file system interface to a Solid Pod
         + Fuse.fusage
     )
     server = SolidFS(version="%prog " + fuse.__version__, usage=usage, dash_s_do="setsingle")
-    server.set_websocket_event_loop(websocket_event_loop)
 
     server.parser.add_option(mountopt="root", metavar="PATH", default="/data/", help="Surface Pod at PATH [default: %default]")
     server.parse(errex=1)
+
+    # Now let fuselib have the main thread any other threads it wants, but also keep the executor context so the websocket thread doesn't get stopped
     server.main()
-
-
-def run_websocket_loop_forever(websocket_loop: asyncio.AbstractEventLoop, completer: asyncio.Future):
-    """
-    We need to allow fuselib to use it's own threads.
-    We need to avoid putting anything on those threads that we want to ensure runs.
-    By creating the event loop on another thread for Websockets we can use asyncio for websockets.
-    This is simpler and more resource-freindly than creating a thread for each websocket.
-    """
-    # Associate the websocket event loop with the thread we've created for it
-    asyncio.set_event_loop(websocket_loop)
-    websocket_loop.run_until_complete(completer)
-
-
-if __name__ == "__main__":
-
-    # We need some sort of Thread executor so we can listen for websocket updates
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        websocket_loop = asyncio.new_event_loop()
-        completer = asyncio.Future()
-        executor.submit(run_websocket_loop_forever, websocket_loop, completer)
-        # Now let fuselib have the main thread any other threads it wants, but also keep the executor context so the websocket thread doesn't get stopped
-        main(websocket_loop)
-        # When fuselib is done, notify other event loops they should complete too (by using 'run_until_complete')
-        completer.done()

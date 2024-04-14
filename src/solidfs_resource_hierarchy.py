@@ -13,18 +13,17 @@ from rdflib.term import URIRef
 from http_exception import NotFoundException
 from solid_request import SolidRequest
 from solid_resource import Container, Resource, ResourceStat, URIRefHelper
-from solid_websocket import SolidWebsocket
+from solid_websocket.solid_websocket import SolidWebsocket
 
 
 class SolidResourceHierarchy:
     """A Solid Pod is a Resource hierarchy with Containers representing the branches and non-Containers as the leaves"""
 
-    def __init__(self, requestor: SolidRequest, websocket_event_loop: AbstractEventLoop):
+    def __init__(self, requestor: SolidRequest):
         self._logger = structlog.getLogger(self.__class__.__name__)
 
         self.root: Container | None = None
         self.requestor = requestor
-        self.websocket_event_loop = websocket_event_loop
         self.now = time()
 
     def _get_root(self) -> Container:
@@ -99,7 +98,7 @@ class SolidResourceHierarchy:
                         else:
                             discovered_resource = Resource(resource, ResourceStat(size=1000000, mode=stat.S_IFREG | 0o444))
 
-                        SolidWebsocket.listen_for_notifications(self.requestor, discovered_resource, self.websocket_event_loop)
+                        SolidWebsocket.set_up_listener_for_notifications(self.requestor, discovered_resource)
                         items.add(discovered_resource)
 
                     container.contains = items

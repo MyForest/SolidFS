@@ -1,12 +1,14 @@
 import asyncio
+import json
 from sys import exc_info
 from typing import Any
+
 import structlog
-import json
+import websockets
+
 from solid_activity import SolidActivity
 from solid_request import SolidRequest
 from solid_resource import Resource
-import websockets
 
 
 class SolidWebsocket:

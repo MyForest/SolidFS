@@ -1,6 +1,7 @@
+from enum import StrEnum
+
 import structlog
 from rdflib import RDF, Graph, URIRef
-from enum import StrEnum
 
 
 class KnownTypes(StrEnum):

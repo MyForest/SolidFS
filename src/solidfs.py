@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 import asyncio
-from collections.abc import Coroutine
+import concurrent.futures
 import email.utils
 import errno
 import functools
 import stat
 import uuid
+from collections.abc import Coroutine
 from stat import S_IFDIR, S_IFREG
 from typing import Generator
-import concurrent.futures
+
 import fuse
 import structlog
 from fuse import Fuse
@@ -81,7 +82,7 @@ class SolidFS(Fuse):
         self.fd = 0
 
     def set_websocket_event_loop(self, websocket_event_loop: concurrent.futures.ThreadPoolExecutor):
-        '''A very hacky way to get the event loop where it's needed'''
+        """A very hacky way to get the event loop where it's needed"""
         assert not websocket_event_loop is None
         self.hierarchy = SolidResourceHierarchy(self.requestor, websocket_event_loop)
 
@@ -551,6 +552,7 @@ SolidFS enables a file system interface to a Solid Pod
     server.parser.add_option(mountopt="root", metavar="PATH", default="/data/", help="Surface Pod at PATH [default: %default]")
     server.parse(errex=1)
     server.main()
+
 
 def run_websocket_loop_forever(websocket_loop: asyncio.AbstractEventLoop):
     """

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-from asyncio import AbstractEventLoop
 import os
 import stat
+from asyncio import AbstractEventLoop
 from stat import S_IFDIR
 from time import time
 from typing import Iterable
@@ -18,7 +18,7 @@ from solid_websocket import SolidWebsocket
 class SolidResourceHierarchy:
     """A Solid Pod is a Resource hierarchy with Containers representing the branches and non-Containers as the leaves"""
 
-    def __init__(self, requestor: SolidRequest, websocket_event_loop:AbstractEventLoop):
+    def __init__(self, requestor: SolidRequest, websocket_event_loop: AbstractEventLoop):
         self._logger = structlog.getLogger(self.__class__.__name__)
 
         self.root: Container | None = None

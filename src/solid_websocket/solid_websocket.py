@@ -42,7 +42,7 @@ class SolidWebsocketDaemon(Thread):
 class SolidWebsocket:
     @staticmethod
     def set_up_listener_for_notifications(requestor: SolidRequest, resource: Resource):
-        #TODO: Should use discovery to find websocket endpoint
+        # TODO: Should use discovery to find websocket endpoint
         with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
             response = requestor.request(
                 "POST",

@@ -46,6 +46,7 @@ class Resource:
     uri: URIRef
     stat: ResourceStat
     content: Cache = field(default_factory=CacheFactory.get_cache)
+    # Default to being unknown content type (https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types)
     content_type: str = "application/octet-stream"
 
     def __hash__(self) -> int:

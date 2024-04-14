@@ -1,14 +1,71 @@
 #!/usr/bin/env python3
 import errno
+import functools
 import logging
 import os
 
 import structlog
 
+from solid_request import (
+    BadRequestException,
+    NoAccessException,
+    NotAcceptableException,
+    RedirectionException,
+    ServerException,
+)
+from solidfs_resource_hierarchy import ResourceNotFoundException
+
 
 class SolidPathValidation:
     def __init__(self):
         self._logger = structlog.getLogger(self.__class__.__name__)
+
+    @staticmethod
+    def customize_return_based_on_exception_type(func):
+        """
+        Known-exception types are gracelly mapped to expected return codes.
+        Unknown exceptions are logged with exception info and a generic return code is returned.
+        """
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            logger = structlog.getLogger(SolidPathValidation.__name__)
+            try:
+                return func(*args, **kwargs)
+            except RedirectionException:
+                logger.debug("Resource has moved")
+                return -errno.EREMCHG
+            except ResourceNotFoundException:
+                logger.debug("No such path")
+                return -errno.ENOENT
+            except NotAcceptableException:
+                logger.debug("Not acceptable")
+                return -errno.ENOTSUP
+            except NoAccessException:
+                logger.debug("No access")
+                return -errno.EACCES
+            except BadRequestException:
+                logger.debug("Bad request")
+                return -errno.EINVAL
+            except ServerException:
+                logger.debug("Server exception")
+                return -errno.EAGAIN
+            except:
+                logger.exception("Unknown exception", exc_info=True)
+                return -errno.EBADMSG
+
+        return wrapper
+
+    @staticmethod
+    def validate_path(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            validation_code = SolidPathValidation.get_path_validation_result_code(args[1])
+            if validation_code:
+                return -validation_code
+            return func(*args, **kwargs)
+
+        return wrapper
 
     @staticmethod
     def _log_exception_and_return_code(code: int) -> int:

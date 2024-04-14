@@ -9,12 +9,8 @@ import structlog
 from rdflib import Graph
 from rdflib.term import URIRef
 
-from solid_request import SolidRequest
+from solid_request import ResourceNotFoundException, SolidRequest
 from solid_resource import Container, Resource, ResourceStat, URIRefHelper
-
-
-class PathNotFoundException(Exception):
-    pass
 
 
 class SolidResourceHierarchy:
@@ -66,7 +62,7 @@ class SolidResourceHierarchy:
                     found = True
                     break
             if not found:
-                raise PathNotFoundException(f"'{part}' not found in '{current.uri}' when looking for '{relative_path}' from '{start.uri}'")
+                raise ResourceNotFoundException(f"'{part}' not found in '{current.uri}' when looking for '{relative_path}' from '{start.uri}'")
 
         return current
 

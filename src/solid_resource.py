@@ -4,8 +4,6 @@ from dataclasses import dataclass, field
 import fuse
 from rdflib.term import URIRef
 
-from cache import Cache, CacheFactory
-
 
 class URIRefHelper:
     @staticmethod

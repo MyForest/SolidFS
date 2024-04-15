@@ -25,7 +25,7 @@ def test_truncate_to_nothing():
     new_text = "New text"
 
     with tempfile.NamedTemporaryFile(dir=test_root_folder, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".txt") as temp_file:
-        file_name=temp_file.name
+        file_name = temp_file.name
         temp_file.write(old_text)
         temp_file.flush()
 
@@ -36,8 +36,8 @@ def test_truncate_to_nothing():
         temp_file.truncate(0)
         temp_file.flush()
 
-        with open(file_name,"a+t") as append_new_text:
-            append_new_text.write(new_text)  
+        with open(file_name, "a+t") as append_new_text:
+            append_new_text.write(new_text)
 
         with open(file_name) as source:
             content = source.read()
@@ -48,7 +48,7 @@ def test_truncate_to_something():
     old_text = "Original text"
     truncate_size = 4
     with tempfile.NamedTemporaryFile(dir=test_root_folder, prefix=sys._getframe().f_code.co_name, mode="w+t", suffix=".txt") as temp_file:
-        file_name=temp_file.name
+        file_name = temp_file.name
         temp_file.write(old_text)
         temp_file.flush()
 

@@ -399,7 +399,7 @@ class SolidFS(Fuse):
             if size:
                 # Add 1 to the size so we can tell if it's bigger
                 # TODO: We should just ask for the size
-                read_result = self.read(path, size+1, 0)
+                read_result = self.read(path, size + 1, 0)
                 if isinstance(read_result, int):
                     if read_result < 0:
                         return read_result
@@ -418,15 +418,15 @@ class SolidFS(Fuse):
                 current_size_is_at_least = -1
 
             if size != current_size_is_at_least:
-                self._logger.debug("Truncating because curretn size is not the desired size",size=size,current_size_is_at_least=current_size_is_at_least)
+                self._logger.debug("Truncating because curretn size is not the desired size", size=size, current_size_is_at_least=current_size_is_at_least)
                 new_content = content[:size]
                 resource.stat.st_size = size
                 # Don't change the content type
-                write_result=self.write(path, new_content, 0)
-                if write_result<0:
+                write_result = self.write(path, new_content, 0)
+                if write_result < 0:
                     return write_result
             else:
-                self._logger.debug("Not truncating because the current size is already correct",size=size,current_size_is_at_least=current_size_is_at_least)
+                self._logger.debug("Not truncating because the current size is already correct", size=size, current_size_is_at_least=current_size_is_at_least)
             return 0
 
     @Tracing.traced

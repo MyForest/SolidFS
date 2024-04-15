@@ -418,7 +418,7 @@ class SolidFS(Fuse):
                 current_size_is_at_least = -1
 
             if size != current_size_is_at_least:
-                self._logger.debug("Truncating because curretn size is not the desired size", size=size, current_size_is_at_least=current_size_is_at_least)
+                self._logger.debug("Truncating because current size is not the desired size", size=size, current_size_is_at_least=current_size_is_at_least)
                 new_content = content[:size]
                 resource.stat.st_size = size
                 # Don't change the content type

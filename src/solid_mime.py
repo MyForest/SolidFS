@@ -32,4 +32,7 @@ class SolidMime:
 
         type_from_extension, encoding_from_extension = mimetypes.guess_type(resource.uri, strict=False)
         if type_from_extension:
-            resource.content_type = type_from_extension
+            if encoding_from_extension:
+                resource.content_type = f"{type_from_extension};charset={encoding_from_extension}"
+            else:
+                resource.content_type = type_from_extension

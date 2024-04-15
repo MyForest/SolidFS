@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import os
 import stat
-from asyncio import AbstractEventLoop
 from stat import S_IFDIR
 from time import time
 from typing import Iterable
@@ -10,7 +9,7 @@ import structlog
 from rdflib import Graph
 from rdflib.term import URIRef
 
-from http_exception import NotFoundException
+from http_exception import ForbiddenException, NotFoundException
 from solid_request import SolidRequest
 from solid_resource import Container, Resource, ResourceStat, URIRefHelper
 from solid_websocket.solid_websocket import SolidWebsocket
@@ -92,14 +91,20 @@ class SolidResourceHierarchy:
                         if not isinstance(quoted_resource, URIRef):
                             raise Exception(f"Expected {quoted_resource} to be a URIRef but it was {type(quoted_resource)}")
                         resource = URIRefHelper.from_quoted_url(quoted_resource.toPython())
-                        self._logger.debug("Discovered contained Resource", uri=resource)
-                        if str(resource).endswith("/"):
-                            discovered_resource = Container(resource, ResourceStat(mode=stat.S_IFDIR | 0o755, nlink=2))
-                        else:
-                            discovered_resource = Resource(resource, ResourceStat(size=1000000, mode=stat.S_IFREG | 0o444))
+                        with structlog.contextvars.bound_contextvars(contained_resource_url=resource):
+                            self._logger.debug("Discovered contained Resource")
+                            if str(resource).endswith("/"):
+                                discovered_resource = Container(resource, ResourceStat(mode=stat.S_IFDIR | 0o755, nlink=2))
+                            else:
+                                discovered_resource = Resource(resource, ResourceStat(size=1000000, mode=stat.S_IFREG | 0o444))
 
-                        SolidWebsocket.set_up_listener_for_notifications(self.requestor, discovered_resource)
-                        items.add(discovered_resource)
+                            try:
+                                SolidWebsocket.set_up_listener_for_notifications(self.requestor, discovered_resource)
+                            except ForbiddenException:
+                                self._logger.debug("Unable to set up notification, it is forbidden")
+                            except:
+                                self._logger.debug("Unable to set up notification", exc_info=True)
+                            items.add(discovered_resource)
 
                     container.contains = items
                 else:

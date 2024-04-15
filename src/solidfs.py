@@ -279,23 +279,19 @@ class SolidFS(Fuse):
 
         resource = self.hierarchy.get_resource_by_path(path)
         with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
-            content_to_return = resource.content.get()
-            if not content_to_return is None:
-                self._logger.debug(f"Retrieved content from cache", size=len(content_to_return))
+
+            self._logger.debug(f"Fetching", size=size, uri=resource.uri)
+
+            # Note that we're not using a ranged request because fuse asks for very small chunks and the overhead of fetching them is large
+            # Specifically, the largest read size as at 2024-04-13 is 131072 bytes.
+            response = self.requestor.request("GET", resource.uri.toPython(), {"Accept": "*"})
+
+            if response.status_code == 200:
+                content_to_return = response.content
+                resource.content_type = response.headers["Content-Type"]
+                resource.stat.st_size = len(content_to_return)
             else:
-                self._logger.debug(f"Fetching", size=size, uri=resource.uri)
-
-                # Note that we're not using a ranged request because fuse asks for very small chunks and the overhead of fetching them is large
-                # Specifically, the largest read size as at 2024-04-13 is 131072 bytes.
-                response = self.requestor.request("GET", resource.uri.toPython(), {"Accept": "*"})
-
-                if response.status_code == 200:
-                    content_to_return = response.content
-                    resource.content.set(content_to_return)
-                    resource.content_type = response.headers["Content-Type"]
-                    resource.stat.st_size = len(content_to_return)
-                else:
-                    raise Exception(f"Error reading Solid resource {resource.uri} with code {response.status_code}: {response.text}")
+                raise Exception(f"Error reading Solid resource {resource.uri} with code {response.status_code}: {response.text}")
 
             if size:
                 trimmed_content = content_to_return[offset : offset + size]
@@ -401,35 +397,36 @@ class SolidFS(Fuse):
         resource = self.hierarchy.get_resource_by_path(path)
         with structlog.contextvars.bound_contextvars(resouce_url=resource.uri):
             if size:
-                if resource.content.get() is None:
-                    read_result = self.read(path, size, 0)
-                    if isinstance(read_result, int):
-                        if read_result < 0:
-                            return read_result
-                        else:
-                            raise Exception(f"read result was unexpectedly {read_result}")
-                # Get all the content, not just the latest read chunk
-                content = resource.content.get()
-                if content is None:
-                    raise Exception(f"Resource content for {resource.uri} is missing")
-
+                # Add 1 to the size so we can tell if it's bigger
+                # TODO: We should just ask for the size
+                read_result = self.read(path, size+1, 0)
+                if isinstance(read_result, int):
+                    if read_result < 0:
+                        return read_result
+                    else:
+                        raise Exception(f"read result was unexpectedly {read_result}")
+                content = read_result
                 if len(content) < size:
                     self._logger.debug(f"Unable to set size as there are not enough bytes of content to put in it", available_bytes=len(content))
                     # Arguably we could pad it with zeroes
                     return -errno.EINVAL
-                current_size = len(content)
+                current_size_is_at_least = len(content)
             else:
                 # We don't have an opinion about the current information
                 # There will be a bug later here when someone tries to stop it writing when the target is already zero-length but it only looks like it's zero-length but is in fact unknown so the current bytes will stay there
                 content = bytes()
-                current_size = -1
+                current_size_is_at_least = -1
 
-            if size != current_size:
+            if size != current_size_is_at_least:
+                self._logger.debug("Truncating because curretn size is not the desired size",size=size,current_size_is_at_least=current_size_is_at_least)
                 new_content = content[:size]
-                resource.content.set(new_content)
                 resource.stat.st_size = size
                 # Don't change the content type
-                self.write(path, new_content, 0)
+                write_result=self.write(path, new_content, 0)
+                if write_result<0:
+                    return write_result
+            else:
+                self._logger.debug("Not truncating because the current size is already correct",size=size,current_size_is_at_least=current_size_is_at_least)
             return 0
 
     @Tracing.traced
@@ -472,26 +469,22 @@ class SolidFS(Fuse):
         resource = self.hierarchy.get_resource_by_path(path)
         existing_content = bytes()
         if offset != 0:
-            existing_content = resource.content.get()
-            if existing_content is None:
-                try:
-                    self._logger.debug("Reading existing bytes")
-                    read_result = self.read(path, 10000000, 0)
-                    if isinstance(read_result, int):
-                        return -read_result
-                    existing_content = read_result
-                    self._logger.debug("Read existing bytes", size=len(existing_content))
-                except:
-                    self._logger.warning("Unable to read existing bytes", exc_info=True)
-                    existing_content = bytes()
-                    pass
-                resource.content.set(existing_content)
+            try:
+                self._logger.debug("Reading existing bytes")
+                read_result = self.read(path, 10000000, 0)
+                if isinstance(read_result, int):
+                    return -read_result
+                existing_content = read_result
+                self._logger.debug("Read existing bytes", size=len(existing_content))
+            except:
+                self._logger.warning("Unable to read existing bytes", exc_info=True)
+                existing_content = bytes()
+                pass
 
         extra_content_length = len(buf)
         assert extra_content_length < 10**6
         previous_length = len(existing_content)
         revised_content = existing_content[:offset] + buf + existing_content[offset + len(buf) :]
-        resource.content.set(revised_content)
         resource.stat.st_size = len(revised_content)
 
         previous_content_type = resource.content_type

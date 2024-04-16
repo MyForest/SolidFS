@@ -57,7 +57,22 @@ This is the endpoint where the credentials are exchanged for an access token. If
 
 There is a very rudimentary caching mechanism in the tool. This turns it on with a `1` or off with anything else, for example `0` or if you don't set it.
 
-A very conspicuous side-effect of the caching is that you won't see changes made by other things to the Pod unless you restart SolidFS.
+This was changed on 2024-04-16 to use HTTP-based caching so you will see content changes. Note that 'fuselib' has some caching so this may stop you seeing the changes immediately.
+
+Directory listings are cached in all cases at the moment.
+
+#### SOLIDFS_ENABLE_WEBSOCKET_NOTIFICATIONS
+
+Experimental: The resulting notifications aren't used for anything yet.
+
+Enable with `1` to have websockets created to monitor changes in the Resources. Any other value will avoid websockets being created.
+
+#### SOLIDFS_HTTP_LIBRARY
+
+Experimental: `httpx` is currently slower and fails some tests. The problems are very likely a result of how it's being used by this code.
+
+Use `httpx` to enable [httpx](https://www.python-httpx.org/). Any other value will use [requests](https://requests.readthedocs.io/en/latest/).
+
 
 ### Python
 

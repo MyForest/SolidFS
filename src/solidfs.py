@@ -541,7 +541,11 @@ SolidFS enables a file system interface to a Solid Pod
 """
         + Fuse.fusage
     )
-    server = SolidFS(version="%prog " + fuse.__version__, usage=usage, dash_s_do="setsingle")
+    server = SolidFS(version="%prog " + fuse.__version__, usage=usage)
+    # Set some useful defaults, they can be overridden by user-supplied command line arguments
+    server.fuse_args.optdict["max_write"] = 131072
+    server.fuse_args.optdict["max_read"] = 131072
+    server.fuse_args.optdict["max_background"] = 16
 
     server.parser.add_option(mountopt="root", metavar="PATH", default="/data/", help="Surface Pod at PATH [default: %default]")
     server.parse(errex=1)

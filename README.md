@@ -57,7 +57,7 @@ This is the endpoint where the credentials are exchanged for an access token. If
 
 There is a very rudimentary caching mechanism in the tool. This turns it on with a `1` or off with anything else, for example `0` or if you don't set it.
 
-This was changed on 2024-04-16 to use HTTP-based caching so you will see content changes. Note that 'fuselib' has some caching so this may stop you seeing the changes immediately.
+This was changed on 2024-04-16 to use HTTP-based caching so you will see content changes. Note that `fuselib` has some caching so this may stop you seeing the changes immediately.
 
 Directory listings are cached in all cases at the moment.
 
@@ -73,6 +73,9 @@ Experimental: `httpx` is currently slower and fails some tests. The problems are
 
 Use `httpx` to enable [httpx](https://www.python-httpx.org/). Any other value will use [requests](https://requests.readthedocs.io/en/latest/).
 
+#### fuselib Options
+
+You _can_ [specify options to fuselib](https://github.com/libfuse/libfuse/blob/20de66dc898002b9315192a5095a3dcd4f6ec248/include/fuse_common.h#L622) but in most case you'll want to use the defaults.
 
 ### Python
 
@@ -118,6 +121,12 @@ docker run \
   myforest/solidfs \
  -fd -o allow_other /data/
 ```
+
+### Performance Enhancements
+
+`'fuselib` has hard-coded limits of 128KiB but it's still better than the default of 4KiB pages of data, especially in something like SolidFS where there is an overhead on each call.
+
+The maximum permissable read and write sizes are already set in the code.
 
 ### Building
 

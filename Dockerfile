@@ -6,6 +6,10 @@ RUN apt-get update && apt-get install -y fuse psmisc && rm -rf /var/lib/apt/list
 
 WORKDIR /app
 
+ENV SOLIDFS_ENABLE_WEBSOCKET_NOTIFICATIONS=1
+ENV SOLIDFS_CONTENT_CACHING=1
+ENV SOLIDFS_HTTP_LIBRARY=requests
+
 COPY requirements.txt .
 RUN python3 -m pip --trusted-host pypi.org install -r requirements.txt
 RUN rm requirements.txt

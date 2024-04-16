@@ -1,48 +1,28 @@
 import asyncio
 import json
-from threading import Thread
+import os
 from typing import Any
 
 import structlog
 import websockets
 
 from http_exception import HTTPStatusCodeToException
+from parallel.loop_on_thread import LoopOnThread
 from solid_activity import SolidActivity
-from solid_request import SolidRequest
+from solid_requestor import SolidRequestor
 from solid_resource import Resource
 
 # Global state
-websocket_loop = asyncio.new_event_loop()
+websocket_daemon = LoopOnThread()
 """A separate event loop for efficiently handling websockets"""
-
-
-class SolidWebsocketDaemon(Thread):
-    def __init__(self) -> None:
-        """
-        We need to allow fuselib to use it's own threads.
-        We need to avoid putting anything on those threads that we want to ensure runs.
-        By creating the event loop on another thread for Websockets we can use asyncio for websockets.
-        This is more resource-friendly than creating a thread for each websocket.
-        """
-        super().__init__(
-            None,
-            SolidWebsocketDaemon.run_websocket_loop_forever,
-            SolidWebsocketDaemon.__name__,
-            args=[websocket_loop],
-            daemon=True,
-        )
-
-    @staticmethod
-    def run_websocket_loop_forever(websocket_loop: asyncio.AbstractEventLoop):
-        """Associate the websocket event loop with the thread we've created for it and run the loop so it can process tasks"""
-        asyncio.set_event_loop(websocket_loop)
-        websocket_loop.run_forever()
 
 
 class SolidWebsocket:
     @staticmethod
-    def set_up_listener_for_notifications(requestor: SolidRequest, resource: Resource):
+    def set_up_listener_for_notifications(requestor: SolidRequestor, resource: Resource):
         # TODO: Should use discovery to find websocket endpoint
+        if os.environ.get("SOLIDFS_ENABLE_WEBSOCKET_NOTIFICATIONS") != "1":
+            return
         with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
             response = requestor.request(
                 "POST",
@@ -60,7 +40,7 @@ class SolidWebsocket:
                     resource,
                     topicSubscriptionInfo,
                 ),
-                websocket_loop,
+                websocket_daemon.loop,
             )
 
     @staticmethod

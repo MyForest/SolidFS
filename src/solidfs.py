@@ -2,6 +2,7 @@
 import email.utils
 import errno
 import functools
+import os
 import stat
 import uuid
 from stat import S_IFDIR, S_IFREG
@@ -14,11 +15,13 @@ from rdflib.term import URIRef
 
 from observability.app_logging import AppLogging
 from observability.tracing import Tracing
+from solid_httpx import SolidHTTPX
 from solid_mime import SolidMime
 from solid_path_validation import SolidPathValidation
 from solid_request import SolidRequest
+from solid_requestor import SolidRequestor, requestor_daemon
 from solid_resource import Container, Resource, ResourceStat, URIRefHelper
-from solid_websocket.solid_websocket import SolidWebsocketDaemon
+from solid_websocket.solid_websocket import websocket_daemon
 from solidfs_resource_hierarchy import SolidResourceHierarchy
 
 fuse.fuse_python_api = (0, 2)
@@ -69,11 +72,19 @@ class SolidFS(Fuse):
     def __init__(self, *args, **kw):
         session_identifier = uuid.uuid4().hex
         self._logger = structlog.getLogger(self.__class__.__name__).bind(session_identifier=session_identifier)
-        self.requestor = SolidRequest(session_identifier)
+        self.requestor = self.set_up_requestor(session_identifier)
         self.hierarchy = SolidResourceHierarchy(self.requestor)
 
         Fuse.__init__(self, *args, **kw)
         self.fd = 0
+
+    def set_up_requestor(self, session_identifier: str) -> SolidRequestor:
+        match os.environ.get("SOLIDFS_HTTP_LIBRARY"):
+            case "httpx":
+                return SolidHTTPX(session_identifier)
+            case _:
+                # Specify a default so people don't have to worry about it until they want to
+                return SolidRequest(session_identifier)
 
     @Tracing.traced
     @SolidPathValidation.validate_path
@@ -521,7 +532,8 @@ class SolidFS(Fuse):
 
 if __name__ == "__main__":
     AppLogging.configure_logging()
-    SolidWebsocketDaemon().start()
+    websocket_daemon.start()
+    requestor_daemon.start()
 
     usage = (
         """

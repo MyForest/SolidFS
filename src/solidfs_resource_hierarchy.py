@@ -10,7 +10,7 @@ from rdflib import Graph
 from rdflib.term import URIRef
 
 from http_exception import ForbiddenException, NotFoundException
-from solid_request import SolidRequest
+from solid_requestor import SolidRequestor
 from solid_resource import Container, Resource, ResourceStat, URIRefHelper
 from solid_websocket.solid_websocket import SolidWebsocket
 
@@ -18,7 +18,7 @@ from solid_websocket.solid_websocket import SolidWebsocket
 class SolidResourceHierarchy:
     """A Solid Pod is a Resource hierarchy with Containers representing the branches and non-Containers as the leaves"""
 
-    def __init__(self, requestor: SolidRequest):
+    def __init__(self, requestor: SolidRequestor):
         self._logger = structlog.getLogger(self.__class__.__name__)
 
         self.root: Container | None = None

@@ -124,7 +124,7 @@ docker run \
 
 ### Performance Enhancements
 
-`'fuselib` has hard-coded limits of 128KiB but it's still better than the default of 4KiB pages of data, especially in something like SolidFS where there is an overhead on each call.
+`fuselib` has hard-coded limits of 128KiB but it's still better than the default of 4KiB pages of data, especially in something like SolidFS where there is an overhead on each call.
 
 The maximum permissable read and write sizes are already set in the code.
 
@@ -249,13 +249,12 @@ drwx------@    - root 13 Apr 02:44 test
 
 ## Developing
 
-There is no guidance on this yet.
+There is not much guidance on this yet.
 
 ### Using Values in structlog Context
 
-1. Only bind to values that are safe.
+1. Only bind structlog context to values that are safe, not things like byte arrays.
 2. Don't include security-sensitive information in logs, such as access tokens or headers that contain them.
-3. 
 
 ## Testing
 

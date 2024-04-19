@@ -7,7 +7,9 @@ import stat
 import uuid
 from stat import S_IFDIR, S_IFREG
 from typing import Generator
+
 from dotenv import load_dotenv
+
 load_dotenv()
 import fuse
 import structlog
@@ -81,10 +83,12 @@ class SolidFS(Fuse):
         match os.environ.get("SOLIDFS_HTTP_LIBRARY"):
             case "httpx":
                 from solid_httpx import SolidHTTPX
+
                 return SolidHTTPX(session_identifier)
             case _:
                 # Specify a default so people don't have to worry about it until they want to
                 from solid_request import SolidRequest
+
                 return SolidRequest(session_identifier)
 
     @Tracing.traced

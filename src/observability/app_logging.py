@@ -1,12 +1,15 @@
 import logging
 
 import structlog
-can_use_open_telemetry=False
+
+can_use_open_telemetry = False
 try:
     import opentelemetry
-    can_use_open_telemetry=False
+
+    can_use_open_telemetry = False
 except:
-    logging.warning("Unable to import opentelemetry to extend logs",exc_info=True)
+    logging.warning("Unable to import opentelemetry to extend logs", exc_info=True)
+
 
 class AppLogging:
 
@@ -39,10 +42,10 @@ class AppLogging:
             timestamper,
         ]
 
-        processors=shared_processors            + [
-                structlog.contextvars.merge_contextvars,
-                structlog.stdlib.ProcessorFormatter.wrap_for_formatter,                
-            ]
+        processors = shared_processors + [
+            structlog.contextvars.merge_contextvars,
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ]
         if can_use_open_telemetry:
             processors.append(AppLogging._add_open_telemetry_spans)
 

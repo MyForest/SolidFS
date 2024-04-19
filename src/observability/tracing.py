@@ -1,22 +1,22 @@
 import functools
 import logging
 
-can_use_open_telemetry=False
+can_use_open_telemetry = False
 try:
     from opentelemetry import trace
     from opentelemetry.sdk.trace import TracerProvider
 
     trace.set_tracer_provider(TracerProvider())
-    can_use_open_telemetry=False
+    can_use_open_telemetry = False
 except:
-    logging.warning("Unable to import opentelemetry to trace functions",exc_info=True)
-
+    logging.warning("Unable to import opentelemetry to trace functions", exc_info=True)
 
 
 class Tracing:
     @staticmethod
     def traced(func):
         if can_use_open_telemetry:
+
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
                 with trace.get_tracer("SolidFS").start_as_current_span(func.__name__):

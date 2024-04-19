@@ -5,12 +5,14 @@ import os
 from typing import Any
 
 import structlog
-can_use_web_sockets=False
-try:    
+
+can_use_web_sockets = False
+try:
     import websockets
-    can_use_web_sockets=True
+
+    can_use_web_sockets = True
 except:
-    logging.warning("Unable to import websockets to get notifications",exc_info=True)
+    logging.warning("Unable to import websockets to get notifications", exc_info=True)
 
 
 from http_exception import HTTPStatusCodeToException
@@ -51,7 +53,7 @@ class SolidWebsocket:
             )
 
     @staticmethod
-    async def _listen_for_websocket_responses(resource: Resource, topicSubscriptionInfo: dict[str, Any])->None:
+    async def _listen_for_websocket_responses(resource: Resource, topicSubscriptionInfo: dict[str, Any]) -> None:
         if not can_use_web_sockets:
             return
         logger = structlog.getLogger(SolidWebsocket.__name__)

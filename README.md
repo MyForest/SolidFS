@@ -79,12 +79,23 @@ You _can_ [specify options to fuselib](https://github.com/libfuse/libfuse/blob/2
 
 ### Python
 
-We're assuming you are mounting your Solid Pod at `/data/`.
+#### From Cloned Repo
 
-You may be successful with:
-1. a suitable Python environment with the [requirements](requirements.txt)
-2. set the environment variables mentioned in [.env.sample](.env.sample)
-3. python3 src/solidfs.py -fd /data/
+Be thoughtful about how this might impact your machine.
+
+First install the dependencies:
+
+```bash
+python3 -m pip --trusted-host pypi.org install -r requirements.txt
+```
+
+Now copy [.env.sample](.env.sample) to `.env` and put your settings in there.
+
+Now you can mount your Pod. Be thoughtful about where you mount it. For example if you mount it in your home and you have a backup process covering all of home it might copy your Pod too.
+
+```bash
+python3 src/solidfs.py -fd ~/pod/
+```
 
 ### Docker
 

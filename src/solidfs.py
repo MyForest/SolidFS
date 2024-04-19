@@ -10,7 +10,6 @@ from typing import Generator
 
 from dotenv import load_dotenv
 
-load_dotenv()
 import fuse
 import structlog
 from fuse import Fuse
@@ -536,6 +535,7 @@ class SolidFS(Fuse):
 
 
 if __name__ == "__main__":
+    load_dotenv()
     AppLogging.configure_logging()
     websocket_daemon.start()
     requestor_daemon.start()

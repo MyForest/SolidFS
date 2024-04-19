@@ -1,10 +1,17 @@
 import asyncio
 import json
+import logging
 import os
 from typing import Any
 
 import structlog
-import websockets
+can_use_web_sockets=False
+try:    
+    import websockets
+    can_use_web_sockets=True
+except:
+    logging.warning("Unable to import websockets to get notifications",exc_info=True)
+
 
 from http_exception import HTTPStatusCodeToException
 from parallel.loop_on_thread import LoopOnThread
@@ -44,14 +51,19 @@ class SolidWebsocket:
             )
 
     @staticmethod
-    async def _listen_for_websocket_responses(resource: Resource, topicSubscriptionInfo: dict[str, Any]):
+    async def _listen_for_websocket_responses(resource: Resource, topicSubscriptionInfo: dict[str, Any])->None:
+        if not can_use_web_sockets:
+            return
         logger = structlog.getLogger(SolidWebsocket.__name__)
 
         logger.debug("Listening for notifications")
-        async for websocket in websockets.connect(topicSubscriptionInfo["endpoint"], subprotocols=[topicSubscriptionInfo["subprotocol"]], ping_interval=50):
-            async for message in websocket:
-                try:
-                    if isinstance(message, str):
-                        SolidActivity.parse_activity(resource, message)
-                except:
-                    logger.warning("Could not parse message", ws_message=message, exc_info=True)
+        try:
+            async for websocket in websockets.connect(topicSubscriptionInfo["endpoint"], subprotocols=[topicSubscriptionInfo["subprotocol"]], ping_interval=50):
+                async for message in websocket:
+                    try:
+                        if isinstance(message, str):
+                            SolidActivity.parse_activity(resource, message)
+                    except:
+                        logger.warning("Could not parse message", ws_message=message, exc_info=True)
+        except:
+            logger.warning("Unable to listen for notifications", exc_info=True)

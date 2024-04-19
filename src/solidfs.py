@@ -7,7 +7,8 @@ import stat
 import uuid
 from stat import S_IFDIR, S_IFREG
 from typing import Generator
-
+from dotenv import load_dotenv
+load_dotenv()
 import fuse
 import structlog
 from fuse import Fuse
@@ -15,10 +16,8 @@ from rdflib.term import URIRef
 
 from observability.app_logging import AppLogging
 from observability.tracing import Tracing
-from solid_httpx import SolidHTTPX
 from solid_mime import SolidMime
 from solid_path_validation import SolidPathValidation
-from solid_request import SolidRequest
 from solid_requestor import SolidRequestor, requestor_daemon
 from solid_resource import Container, Resource, ResourceStat, URIRefHelper
 from solid_websocket.solid_websocket import websocket_daemon
@@ -81,9 +80,11 @@ class SolidFS(Fuse):
     def set_up_requestor(self, session_identifier: str) -> SolidRequestor:
         match os.environ.get("SOLIDFS_HTTP_LIBRARY"):
             case "httpx":
+                from solid_httpx import SolidHTTPX
                 return SolidHTTPX(session_identifier)
             case _:
                 # Specify a default so people don't have to worry about it until they want to
+                from solid_request import SolidRequest
                 return SolidRequest(session_identifier)
 
     @Tracing.traced
@@ -546,6 +547,7 @@ SolidFS enables a file system interface to a Solid Pod
     server.fuse_args.optdict["max_write"] = 131072
     server.fuse_args.optdict["max_read"] = 131072
     server.fuse_args.optdict["max_background"] = 16
+    server.fuse_args.optdict["fsname"] = SolidFS.__name__
 
     server.parser.add_option(mountopt="root", metavar="PATH", default="/data/", help="Surface Pod at PATH [default: %default]")
     server.parse(errex=1)

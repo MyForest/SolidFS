@@ -1,23 +1,34 @@
 import functools
+import logging
 
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
+can_use_open_telemetry=False
+try:
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
 
-trace.set_tracer_provider(TracerProvider())
+    trace.set_tracer_provider(TracerProvider())
+    can_use_open_telemetry=False
+except:
+    logging.warning("Unable to import opentelemetry to trace functions",exc_info=True)
+
 
 
 class Tracing:
     @staticmethod
     def traced(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            with trace.get_tracer("SolidFS").start_as_current_span(func.__name__):
-                return func(*args, **kwargs)
+        if can_use_open_telemetry:
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                with trace.get_tracer("SolidFS").start_as_current_span(func.__name__):
+                    return func(*args, **kwargs)
 
-        return wrapper
+            return wrapper
+        return func
 
     @staticmethod
     def get_trace_headers() -> dict[str, str]:
+        if not can_use_open_telemetry:
+            return {}
 
         # The X prefix is deprecated: https://datatracker.ietf.org/doc/html/rfc6648
         trace_headers = {}

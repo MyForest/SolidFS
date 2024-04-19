@@ -1,8 +1,12 @@
 import logging
 
 import structlog
-from opentelemetry import trace
-
+can_use_open_telemetry=False
+try:
+    import opentelemetry
+    can_use_open_telemetry=False
+except:
+    logging.warning("Unable to import opentelemetry to extend logs",exc_info=True)
 
 class AppLogging:
 
@@ -10,7 +14,7 @@ class AppLogging:
     def _add_open_telemetry_spans(_, __, event_dict):
         # See https://www.structlog.org/en/stable/frameworks.html#opentelemetry
 
-        span = trace.get_current_span()
+        span = opentelemetry.trace.get_current_span()
         if not span.is_recording():
             # event_dict[0][0]["span"] = None
             return event_dict
@@ -20,10 +24,10 @@ class AppLogging:
 
         dictionary_to_update = event_dict[0][0]
 
-        dictionary_to_update["span_id"] = trace.format_span_id(ctx.span_id)
-        dictionary_to_update["trace_id"] = trace.format_trace_id(ctx.trace_id)
+        dictionary_to_update["span_id"] = opentelemetry.trace.format_span_id(ctx.span_id)
+        dictionary_to_update["trace_id"] = opentelemetry.trace.format_trace_id(ctx.trace_id)
         if parent:
-            dictionary_to_update["parent_span_id"] = trace.format_span_id(parent.span_id)
+            dictionary_to_update["parent_span_id"] = opentelemetry.trace.format_span_id(parent.span_id)
 
         return event_dict
 
@@ -35,13 +39,15 @@ class AppLogging:
             timestamper,
         ]
 
-        structlog.configure(
-            processors=shared_processors
-            + [
+        processors=shared_processors            + [
                 structlog.contextvars.merge_contextvars,
-                structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
-                AppLogging._add_open_telemetry_spans,
-            ],
+                structlog.stdlib.ProcessorFormatter.wrap_for_formatter,                
+            ]
+        if can_use_open_telemetry:
+            processors.append(AppLogging._add_open_telemetry_spans)
+
+        structlog.configure(
+            processors=processors,
             logger_factory=structlog.stdlib.LoggerFactory(),
             cache_logger_on_first_use=True,
         )

@@ -8,10 +8,9 @@ import uuid
 from stat import S_IFDIR, S_IFREG
 from typing import Generator
 
-from dotenv import load_dotenv
-
 import fuse
 import structlog
+from dotenv import load_dotenv
 from fuse import Fuse
 from rdflib.term import URIRef
 

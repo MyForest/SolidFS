@@ -24,7 +24,6 @@ class Tracing:
                 return func(*args, **kwargs)
 
         return wrapper
-    
 
     @staticmethod
     def get_trace_headers() -> dict[str, str]:

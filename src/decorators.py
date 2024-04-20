@@ -33,7 +33,6 @@ class Decorators:
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            print(type(func), func.__module__, "GROG")
             with structlog.contextvars.bound_contextvars(function_name=func.__name__):
                 scalar_args = [arg for arg in args if type(arg) in [int, str, bool]]
                 logger = structlog.getLogger(func.__qualname__.split(".")[0])

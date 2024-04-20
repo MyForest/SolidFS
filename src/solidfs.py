@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import email.utils
 import errno
-import functools
 import os
 import stat
 import uuid
@@ -14,6 +13,7 @@ from dotenv import load_dotenv
 from fuse import Fuse
 from rdflib.term import URIRef
 
+from decorators import Decorators
 from observability.app_logging import AppLogging
 from observability.tracing import Tracing
 from solid_mime import SolidMime
@@ -24,45 +24,6 @@ from solid_websocket.solid_websocket import websocket_daemon
 from solidfs_resource_hierarchy import SolidResourceHierarchy
 
 fuse.fuse_python_api = (0, 2)
-
-
-class Decorators:
-
-    @staticmethod
-    def log_not_supported(func):
-        """Indicates the method isn't supported, but will return as though it succeeded"""
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwarg):
-            scalar_args = [arg for arg in args if type(arg) in [int, str, bool]]
-            logger = structlog.getLogger(SolidFS.__name__)
-            logger.warning("Not supported", function_name=func.__name__, scalar_args=scalar_args)
-            return 0
-
-        return wrapper
-
-    @staticmethod
-    def add_path_to_logging_context(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            with structlog.contextvars.bound_contextvars(path=args[1]):
-                return func(*args, **kwargs)
-
-        return wrapper
-
-    @staticmethod
-    def log_invocation_with_scalar_args(func):
-        """Limit the logging to scalar arguments so we don't overwhelm the logger"""
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            with structlog.contextvars.bound_contextvars(function_name=func.__name__):
-                scalar_args = [arg for arg in args if type(arg) in [int, str, bool]]
-                logger = structlog.getLogger(SolidFS.__name__)
-                logger.debug(func.__name__, scalar_args=scalar_args)
-                return func(*args, **kwargs)
-
-        return wrapper
 
 
 class SolidFS(Fuse):

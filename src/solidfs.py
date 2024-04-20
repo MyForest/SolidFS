@@ -24,6 +24,7 @@ from solid_websocket.solid_websocket import websocket_daemon
 from solidfs_resource_hierarchy import SolidResourceHierarchy
 
 fuse.fuse_python_api = (0, 2)
+UNKNOWN_SIZE = 10000000
 
 
 class SolidFS(Fuse):
@@ -34,6 +35,7 @@ class SolidFS(Fuse):
         self._logger = structlog.getLogger(self.__class__.__name__).bind(session_identifier=session_identifier)
         self.requestor = self.set_up_requestor(session_identifier)
         self.hierarchy = SolidResourceHierarchy(self.requestor)
+        self.resource_buffer: dict[URIRef, bytearray] = {}
 
         Fuse.__init__(self, *args, **kw)
         self.fd = 0
@@ -165,6 +167,7 @@ class SolidFS(Fuse):
         with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
             if resource.stat.st_mtime == 0:
                 self._refresh_resource_stat(resource)
+            self._logger.debug("Stats", **vars(resource.stat))
         return resource.stat
 
     @Tracing.traced
@@ -241,8 +244,15 @@ class SolidFS(Fuse):
 
     @Tracing.traced
     @SolidPathValidation.validate_path
-    @Decorators.log_not_supported
+    @Decorators.add_path_to_logging_context
+    @Decorators.log_invocation_with_scalar_args
+    @SolidPathValidation.customize_return_based_on_exception_type
     def open(self, path: str, flags) -> int:
+        is_append_set = flags & os.O_APPEND == os.O_APPEND
+
+        if is_append_set:
+            self._logger.warning("Append is not yet supported")
+            raise Exception("We don't support append yet")
         pass
 
     @Tracing.traced
@@ -253,7 +263,7 @@ class SolidFS(Fuse):
     def read(self, path: str, size: int, offset: int) -> bytes | int:
 
         resource = self.hierarchy.get_resource_by_path(path)
-        with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
+        with structlog.contextvars.bound_contextvars(resource_url=resource.uri, size=size, offset=offset):
 
             self._logger.debug(f"Fetching", size=size, uri=resource.uri)
 
@@ -261,19 +271,14 @@ class SolidFS(Fuse):
             # Specifically, the largest read size as at 2024-04-13 is 131072 bytes.
             response = self.requestor.request("GET", resource.uri.toPython(), {"Accept": "*"})
 
-            if response.status_code == 200:
-                content_to_return = response.content
-                resource.content_type = response.headers["Content-Type"]
-                resource.stat.st_size = len(content_to_return)
-            else:
+            if response.status_code != 200:
                 raise Exception(f"Error reading Solid resource {resource.uri} with code {response.status_code}: {response.text}")
 
-            if size:
-                trimmed_content = content_to_return[offset : offset + size]
-                self._logger.debug("Returning specified number of bytes", size=size, offset=offset, returning_size=len(trimmed_content))
-                return trimmed_content
+            content_to_return = response.content[offset : offset + size]
+            resource.content_type = response.headers["Content-Type"]
+            resource.stat.st_size = int(response.headers["Content-Length"])
 
-            self._logger.debug("Returning all bytes", size=len(content_to_return))
+            self._logger.debug("Returning content", returning_size=len(content_to_return))
             return content_to_return
 
     @Tracing.traced
@@ -305,6 +310,42 @@ class SolidFS(Fuse):
 
                 assert dir_entry.type
                 yield dir_entry
+
+    @Tracing.traced
+    @SolidPathValidation.validate_path
+    @Decorators.add_path_to_logging_context
+    @Decorators.log_invocation_with_scalar_args
+    @SolidPathValidation.customize_return_based_on_exception_type
+    def flush(self, path: str) -> int:
+        resource = self.hierarchy.get_resource_by_path(path)
+        with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
+            content = self.resource_buffer.get(resource.uri)
+
+            if content is None:
+                self._logger.debug("No content in buffer")
+                return 0
+
+            content_length = len(content)
+            previous_content_type = resource.content_type
+            SolidMime.update_mime_type_from_content(0, resource, content)
+
+            expected_put_response_code = 204
+            if resource.content_type != previous_content_type:
+                # If content type varies then some Solid servers won't alter their view of the content so we have to DELETE the old content first
+                # Don't use unlink because it will remove meta data
+                self._logger.info("Deleting due to content type changing", previous_content_type=previous_content_type, content_type=resource.content_type)
+                response = self.requestor.request("DELETE", resource.uri.toPython())
+                expected_put_response_code = 201
+
+            headers = {"Content-Type": resource.content_type, "Content-Length": str(content_length)}
+            self._logger.info("Writing Resource content from buffer", content_length=content_length, previous_content_type=previous_content_type, **headers)
+            response = self.requestor.request("PUT", resource.uri.toPython(), headers, content)
+            if response.status_code == expected_put_response_code:
+                self._logger.debug("Wrote bytes to Solid server", content_length=content_length, status_code=response.status_code)
+                resource.stat.st_size = content_length
+            del self.resource_buffer[resource.uri]
+
+            return 0
 
     @Tracing.traced
     @Decorators.log_invocation_with_scalar_args
@@ -371,6 +412,14 @@ class SolidFS(Fuse):
 
         resource = self.hierarchy.get_resource_by_path(path)
         with structlog.contextvars.bound_contextvars(resouce_url=resource.uri):
+            in_flight = self.resource_buffer.get(resource.uri)
+            if in_flight:
+                self._logger.debug("Truncating in-flight buffer", old_size=len(in_flight), new_size=size)
+                self.resource_buffer[resource.uri] = in_flight[:size]
+                resource.stat.st_size = size
+                # TODO: What about content type?
+                return 0
+
             if size:
                 # Add 1 to the size so we can tell if it's bigger
                 # TODO: We should just ask for the size
@@ -382,7 +431,7 @@ class SolidFS(Fuse):
                         raise Exception(f"read result was unexpectedly {read_result}")
                 content = read_result
                 if len(content) < size:
-                    self._logger.debug(f"Unable to set size as there are not enough bytes of content to put in it", available_bytes=len(content))
+                    self._logger.debug(f"Unable to set size as there are not enough bytes of content to put in it", available_bytes=len(content), size=size)
                     # Arguably we could pad it with zeroes
                     return -errno.EINVAL
                 current_size_is_at_least = len(content)
@@ -437,61 +486,23 @@ class SolidFS(Fuse):
     @Decorators.log_invocation_with_scalar_args
     @SolidPathValidation.customize_return_based_on_exception_type
     def write(self, path: str, buf: bytes, offset: int) -> int:
-        """Write a Resource"""
+        """Write content for Resource to an in-memory buffer"""
 
         assert isinstance(buf, bytes)
 
         resource = self.hierarchy.get_resource_by_path(path)
-        existing_content = bytes()
-        if offset != 0:
-            try:
-                self._logger.debug("Reading existing bytes")
-                read_result = self.read(path, 10000000, 0)
-                if isinstance(read_result, int):
-                    return -read_result
-                existing_content = read_result
-                self._logger.debug("Read existing bytes", size=len(existing_content))
-            except:
-                self._logger.warning("Unable to read existing bytes", exc_info=True)
-                existing_content = bytes()
-                pass
-
-        extra_content_length = len(buf)
-        assert extra_content_length < 10**6
-        previous_length = len(existing_content)
-        revised_content = existing_content[:offset] + buf + existing_content[offset + len(buf) :]
-        resource.stat.st_size = len(revised_content)
-
-        previous_content_type = resource.content_type
-
-        # Now we have some content we can adapt the mime type
-        SolidMime.update_mime_type_from_content(offset, resource, revised_content)
-
-        self._logger.debug(
-            "Content",
-            previous_content_type=previous_content_type,
-            content_type=resource.content_type,
-            offset=offset,
-            extra_content_length=extra_content_length,
-            previous_length=previous_length,
-            new_content_length=resource.stat.st_size,
-        )
-        headers = {"Content-Type": resource.content_type, "Content-Length": str(len(revised_content))}
-
-        if resource.content_type != previous_content_type:
-            # If content type varies then some Solid servers won't alter their view of the content so we have to DELETE the old content first
-            # Don't use unlink because it will remove meta data
-            self._logger.info("Deleting due to content type changing", previous_content_type=previous_content_type, content_type=resource.content_type)
-            response = self.requestor.request("DELETE", resource.uri.toPython())
-
-        response = self.requestor.request("PUT", resource.uri.toPython(), headers, revised_content)
-
-        if response.status_code in [201, 204]:
-            self._logger.debug("Wrote bytes to Solid server", size=len(revised_content), status_code=response.status_code)
-            return len(buf)
-
-        self._logger.error("Error writing Solid Resource to server", status_code=response.status_code, exc_info=True)
-        return -errno.EBADMSG
+        with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
+            content_length = len(buf)
+            buffer: bytearray = self.resource_buffer.setdefault(resource.uri, bytearray())
+            self._logger.debug("Adding content to buffer", size=len(buf), offset=offset)
+            target_size = offset + content_length
+            current_buffer_length = len(buffer)
+            if current_buffer_length < target_size:
+                delta = target_size - current_buffer_length
+                self._logger.debug("Extending buffer", delta=delta, target_size=target_size, current_buffer_length=current_buffer_length)
+                buffer.extend(bytearray(delta))
+            buffer[offset : offset + content_length] = buf
+            return content_length
 
 
 if __name__ == "__main__":

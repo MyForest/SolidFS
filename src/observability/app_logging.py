@@ -4,9 +4,9 @@ import structlog
 
 can_use_open_telemetry = False
 try:
-    import opentelemetry
+    import opentelemetry.trace
 
-    can_use_open_telemetry = False
+    can_use_open_telemetry = True
 except:
     logging.warning("Unable to import opentelemetry to extend logs", exc_info=True)
 
@@ -31,7 +31,6 @@ class AppLogging:
         dictionary_to_update["trace_id"] = opentelemetry.trace.format_trace_id(ctx.trace_id)
         if parent:
             dictionary_to_update["parent_span_id"] = opentelemetry.trace.format_span_id(parent.span_id)
-
         return event_dict
 
     @staticmethod
@@ -72,3 +71,5 @@ class AppLogging:
         root_logger = logging.getLogger()
         root_logger.addHandler(handler)
         root_logger.setLevel(logging.DEBUG)
+
+        structlog.getLogger(AppLogging.__name__).info("OpenTelemetry", available_in_logs=can_use_open_telemetry)

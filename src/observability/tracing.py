@@ -7,7 +7,7 @@ try:
     from opentelemetry.sdk.trace import TracerProvider
 
     trace.set_tracer_provider(TracerProvider())
-    can_use_open_telemetry = False
+    can_use_open_telemetry = True
 except:
     logging.warning("Unable to import opentelemetry to trace functions", exc_info=True)
 
@@ -15,15 +15,16 @@ except:
 class Tracing:
     @staticmethod
     def traced(func):
-        if can_use_open_telemetry:
+        if not can_use_open_telemetry:
+            return func
 
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                with trace.get_tracer("SolidFS").start_as_current_span(func.__name__):
-                    return func(*args, **kwargs)
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            with trace.get_tracer(func.__qualname__.split(".")[0]).start_as_current_span(func.__name__):
+                return func(*args, **kwargs)
 
-            return wrapper
-        return func
+        return wrapper
+    
 
     @staticmethod
     def get_trace_headers() -> dict[str, str]:

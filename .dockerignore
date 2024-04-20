@@ -1,5 +1,8 @@
 .mypy_cache/
+.cache/
 .pytest_cache/
 __pycache__/
 .local/
 .env
+.git
+docs/

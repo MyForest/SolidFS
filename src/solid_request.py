@@ -41,7 +41,16 @@ class SolidRequest(SolidRequestor):
                 data=data,
             )
 
-            self._logger.debug("Response", headers_returned=sorted(response.headers.keys()), status_code=response.status_code, response_fields=response.__attrs__)
+            content_size = len(response.content)
+            content_length_header = headers.get("Content-Length")
+            self._logger.debug(
+                "Response",
+                content_size=content_size,
+                content_length_header=content_length_header,
+                headers_returned=sorted(response.headers.keys()),
+                status_code=response.status_code,
+                response_fields=response.__attrs__,
+            )
 
             HTTPStatusCodeToException.raise_exception_for_failed_requests(response.status_code)
 

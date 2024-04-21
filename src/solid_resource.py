@@ -40,11 +40,18 @@ class ResourceStat(fuse.Stat):
 
 
 @dataclass
+class ExtendedAttribute:
+    source: str
+    value: str
+
+
+@dataclass
 class Resource:
     uri: URIRef
     stat: ResourceStat
     # Default to being unknown content type (https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types)
     content_type: str = "application/octet-stream"
+    extended_attributes: dict[str, ExtendedAttribute] = field(default_factory=dict)
 
     def __hash__(self) -> int:
         return self.uri.__hash__()

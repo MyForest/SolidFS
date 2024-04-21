@@ -32,7 +32,7 @@ class SolidRequest(SolidRequestor):
 
         with structlog.contextvars.bound_contextvars(method=method, url=url, headers_supplied=sorted(headers.keys())):
 
-            self._logger.debug("Sending request")
+            self._logger.debug("Sending request", accept=headers.get("Accept"))
 
             response = self._session.request(
                 method,

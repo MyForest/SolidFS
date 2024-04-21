@@ -407,6 +407,25 @@ class SolidFS(Fuse):
         return self.unlink(path)
 
     @Tracing.traced
+    @Decorators.log_invocation_with_scalar_args
+    @SolidPathValidation.customize_return_based_on_exception_type
+    def statfs(self) -> fuse.StatVfs | int:
+        # Use the maximum size for all the unknown limitations
+        chunk_128KiB = 131072
+        return fuse.StatVfs(
+            f_bsize=chunk_128KiB,
+            f_frsize=chunk_128KiB,
+            f_blocks=2**32,
+            f_bfree=2**32,
+            f_bavail=2**32,
+            f_files=2**32,
+            f_ffree=2**32,
+            f_favail=2**32,
+            f_flag=os.ST_NOATIME | os.ST_NODIRATIME,
+            f_namemax=1024,
+        )
+
+    @Tracing.traced
     @SolidPathValidation.validate_path
     @Decorators.add_path_to_logging_context
     @Decorators.log_invocation_with_scalar_args

@@ -11,7 +11,7 @@ class SolidResponse:
         pass
 
     @property
-    def links(self) -> dict:
+    def links(self) -> dict[str, dict[str, str]]:
         pass
 
     @property

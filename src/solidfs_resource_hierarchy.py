@@ -17,9 +17,10 @@ from solid_websocket.solid_websocket import SolidWebsocket
 
 class SolidResourceHierarchy:
     """A Solid Pod is a Resource hierarchy with Containers representing the branches and non-Containers as the leaves"""
-    one_kib=2^10    
-    one_mib=one_kib**2
-    UNKNOWN_SIZE = 100*one_mib
+
+    one_kib = 2 ^ 10
+    one_mib = one_kib**2
+    UNKNOWN_SIZE = 100 * one_mib
 
     def __init__(self, requestor: SolidRequestor):
         self._logger = structlog.getLogger(self.__class__.__name__)

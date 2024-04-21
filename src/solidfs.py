@@ -313,7 +313,7 @@ class SolidFS(Fuse):
                     self._logger.debug("Returning content from read cache", returning_size=len(content_to_return), from_cache=True)
                     return content_to_return
 
-            response = self.requestor.request("GET", resource.uri.toPython(), {"Accept": "*"})
+            response = self.requestor.request("GET", resource.uri.toPython(), {"Accept": "*/*"})
 
             if response.status_code != 200:
                 raise Exception(f"Error reading Solid resource {resource.uri} with code {response.status_code}: {response.text}")

@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
+import datetime
 import os
 import stat
 from stat import S_IFDIR
 from time import time
 from typing import Iterable
 
+import humanize
 import structlog
 from rdflib import Graph
 from rdflib.term import URIRef
 
-from http_exception import ForbiddenException, NotFoundException
+from http_exception import ForbiddenException, NotFoundException, UnauthorizedException
 from solid_requestor import SolidRequestor
 from solid_resource import Container, Resource, ResourceStat, URIRefHelper
 from solid_websocket.solid_websocket import SolidWebsocket
@@ -72,6 +74,23 @@ class SolidResourceHierarchy:
 
         return current
 
+    def _extend_resource(self, resource: Resource, g: Graph) -> None:
+        """Looks for interesting triples in graph that might give us more insight into the state of the Resource. Notably this is cheaper than doing HEAD on each Resource."""
+
+        quoted_uri = URIRef(URIRefHelper.to_quoted_url(resource.uri))
+        mtimes = list(g.objects(quoted_uri, URIRef("http://www.w3.org/ns/posix/stat#mtime")))
+        if mtimes:
+            newest = int(sorted(mtimes)[-1].toPython())
+            d = datetime.datetime.fromtimestamp(newest)
+            self._logger.debug("Set mtime from posix stat mtime in RDF graph", mtime=newest, iso8601=d.isoformat())
+            resource.stat.st_mtime = newest
+
+        sizes = list(g.objects(quoted_uri, URIRef("http://www.w3.org/ns/posix/stat#size")))
+        if sizes:
+            largest = int(sorted(sizes)[-1].toPython())
+            self._logger.debug("Set size from posix stat size in RDF graph", size=largest, human_size=humanize.naturalsize(largest, binary=True))
+            resource.stat.st_size = largest
+
     def get_contained_resources(self, container: Container) -> Iterable[Resource]:
         """Return the child Resources of this Container in the hierarchy"""
         with structlog.contextvars.bound_contextvars(resource_url=container.uri):
@@ -79,13 +98,29 @@ class SolidResourceHierarchy:
                 quoted_url = URIRefHelper.to_quoted_url(container.uri)
                 self._logger.debug("Determining contents of Container", quoted_url=quoted_url)
 
-                response = self.requestor.request("GET", quoted_url, {"Accept": "text/turtle,application/rdf+xml,application/ld+json"})
+                try:
+                    response = self.requestor.request("GET", quoted_url, {"Accept": "text/turtle,application/rdf+xml,application/ld+json"})
+                except ForbiddenException as forbidden_exception:
+                    self._logger.warning("Unable to get contents", exception_message=forbidden_exception.message, status_code=forbidden_exception.http_response_code)
+                    container.contains = set[Resource]()
+                    return container.contains
+                except UnauthorizedException as unauthorized_exception:
+                    self._logger.warning("Unable to get contents", exception_message=unauthorized_exception.message, status_code=unauthorized_exception.http_response_code)
+                    container.contains = set[Resource]()
+                    return container.contains
 
                 if response.status_code == 200:
                     content = response.content
                     self._logger.debug("Parsing Container RDF", size=len(content))
                     g = Graph()
                     g.parse(data=content, publicID=container.uri)
+
+                    try:
+                        self._extend_resource(container, g)
+                    except:
+                        self._logger.warning("Unable to extend Container from graph", resource_url=container.uri, exc_info=True)
+                        pass
+
                     # The URIs in the graph are quoted, but our in-memory URIs are UTF-8 encoded strings in URIRefs which aren't quoted
                     ldp_contained = list(g.objects(URIRef(URIRefHelper.to_quoted_url(container.uri)), URIRef("http://www.w3.org/ns/ldp#contains")))
 
@@ -101,6 +136,11 @@ class SolidResourceHierarchy:
                                 discovered_resource = Container(resource, ResourceStat(mode=stat.S_IFDIR | 0o755, nlink=2))
                             else:
                                 discovered_resource = Resource(resource, ResourceStat(size=SolidResourceHierarchy.UNKNOWN_SIZE, mode=stat.S_IFREG | 0o444))
+
+                            try:
+                                self._extend_resource(discovered_resource, g)
+                            except:
+                                self._logger.warning("Unable to extend Resource from graph", resource_url=discovered_resource.uri, exc_info=True)
 
                             try:
                                 SolidWebsocket.set_up_listener_for_notifications(self.requestor, discovered_resource)

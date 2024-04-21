@@ -13,7 +13,7 @@ There is no plan to resolve any one of the specific shortcomings as at 2024-04-1
 
 ## Warning
 
-There is no warranty with this tool and it may break your content on your machine, in your Pod or both. At this time you should only use this tool if you can cope with the consequences of that.
+There is no warranty with SolidFS and it may break your content on your machine, in your Pod or both. At this time you should only use SolidFS if you can cope with the consequences of that.
 
 ## Compatability
 
@@ -64,9 +64,9 @@ https://storage.inrupt.com/ecce92aa-5fa3-4333-8883-4917c405d4d5/some/part/for/me
 
 #### SOLIDFS_CLIENT_ID and SOLIDFS_CLIENT_SECRET
 
-At the moment this tool uses client credentials.
+Most access will be authenticated, but if you don't provide these SolidFS will run without authentication.
 
-If you are using PodSpaces you can generate them in the [OpenID Broker Registration page](https://login.inrupt.com/registration.html). Of course you should keep them secret because they allow something with those credentials to do anything you can do.
+SolidFS uses client credentials. If you are using PodSpaces you can generate them in the [OpenID Broker Registration page](https://login.inrupt.com/registration.html). Of course you should keep them secret because they allow something with those credentials to do anything you can do.
 
 #### SOLIDFS_TOKEN_URL
 
@@ -74,7 +74,7 @@ This is the endpoint where the credentials are exchanged for an access token. If
 
 #### SOLIDFS_CONTENT_CACHING
 
-There is a very rudimentary caching mechanism in the tool. This turns it on with a `1` or off with anything else, for example `0` or if you don't set it.
+There is a very rudimentary caching mechanism in SolidFS. This turns it on with a `1` or off with anything else, for example `0` or if you don't set it.
 
 This was changed on 2024-04-16 to use HTTP-based caching so you will see content changes. Note that `fuselib` has some caching so this may stop you seeing the changes immediately.
 
@@ -116,7 +116,7 @@ Now you can mount your Pod. Be thoughtful about where you mount it. For example 
 python3 src/solidfs.py -d ~/pod/
 ```
 
-Note the `-d` turns on debug for fuselib which is generally useful whilst this tool is still hardening.
+Note the `-d` turns on debug for fuselib which is generally useful whilst SolidFS is still hardening.
 
 ### Docker
 

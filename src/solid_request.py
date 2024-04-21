@@ -13,7 +13,7 @@ from solid_requestor import SolidRequestor, SolidResponse
 class SolidRequest(SolidRequestor):
     def __init__(self, session_identifier: str):
         self._logger = structlog.getLogger(self.__class__.__name__).bind(session_identifier=session_identifier)
-        self._common_headers = {"Session-Identifier": session_identifier, "User-Agent": "SolidFS/v0.0.1"}
+        self._common_headers = {"Session-Identifier": session_identifier, "User-Agent": "SolidFS/v0.0.2"}
         self._authentication = SolidAuthentication(session_identifier)
         if os.environ.get("SOLIDFS_CONTENT_CACHING") == "1":
             self._logger.info(f"Using content caching", implementation=cachecontrol.CacheControl)

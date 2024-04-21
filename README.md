@@ -194,10 +194,12 @@ In my Pod this returns:
 
 ### rsync to Replicate Lots of Resources
 
-Here I'm using an existing tool to push some content up to my Pod without writing any new code:
+Here I'm using an existing tool to push some content up to my Pod without writing any new code.
+
+Unfortunately Solid does not offer server-side moves so we suppress the temporary file creation using `--inplace` which updates the Resources directly:
 
 ```bash
-rsync -av weather/2023/2023-04 solid/weather/
+rsync -av --partial --inplace weather/2023/2023-04 solid/weather/
 ```
 
 ```

@@ -1,13 +1,21 @@
-import cgi
-import mimetypes
+from email.message import EmailMessage
 import sys
 import tempfile
 from pathlib import Path
 
 import xattr
 
+from solid_mime import SolidMime
+
 # Use a test folder so we don't pollute the Pod too much
 test_root_folder = Path("/data") / "test/"
+
+
+def __get_mime_type(mime_type_with_params: str) -> str:
+
+    msg = EmailMessage()
+    msg["Content-Type"] = mime_type_with_params
+    return msg.get_content_type()
 
 
 def x_fails_test_replace_with_different_content_type():
@@ -69,7 +77,7 @@ def test_mime_type_in_xattr_for_empty():
         # ; charset=utf-8
 
         full_mime_type = xattr.xattr(temp_file.name).get("user.mime_type").decode("utf-8")
-        parsed_type, _ = cgi.parse_header(full_mime_type)
+        parsed_type, _ = __get_mime_type(full_mime_type)
         assert "application/octet-stream" == parsed_type
         with open(temp_file.name) as source:
             content = source.read()
@@ -88,7 +96,7 @@ def xtest_mime_type_in_xattr_for_png():
         temp_file.flush()
 
         full_mime_type = xattr.xattr(temp_file.name).get("user.mime_type").decode("utf-8")
-        parsed_type, _ = cgi.parse_header(full_mime_type)
+        parsed_type, _ = __get_mime_type(full_mime_type)
         assert "image/png" == parsed_type
         with open(temp_file.name, "r+b") as source:
             content = source.read()
@@ -102,5 +110,5 @@ def test_mime_type_in_xattr_for_png_from_file_extension():
         temp_file.flush()
 
         full_mime_type = xattr.xattr(temp_file.name).get("user.mime_type").decode("utf-8")
-        parsed_type, _ = cgi.parse_header(full_mime_type)
+        parsed_type, _ = __get_mime_type(full_mime_type)
         assert "image/png" == parsed_type

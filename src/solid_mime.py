@@ -6,7 +6,6 @@ from solid_resource import ExtendedAttribute, Resource
 
 
 class SolidMime:
-
     @staticmethod
     def update_mime_type_from_content(offset: int, resource: Resource, content: bytearray) -> None:
         """Guesses the mime type and records it on the resource"""

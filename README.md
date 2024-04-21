@@ -19,18 +19,18 @@ There is no warranty with this tool and it may break your content on your machin
 
 Tested using `id.inrupt.com` auth or no auth.
 
-This may sound obvious, but this only covers the [tests](tests/) you can see.
+This may sound obvious, but this only covers the [tests](test/) you can see.
 
-<center>
 
-| Solid Server | <center>Technology</center> | <center>Tested</center> |
+
+| Solid Server | Technology | Tested |
 | --- | --- | --- |
-| PodSpaces | <center>ESS</center> | <center>✅</center>  |
-| inrupt.net | <center>NSS</center> | <center>✅</center>  |
-| solidcommunity.net | <center>NSS</center> | <center>✅</center>  |
-| redpencil.io | <center>CSS</center> | <center>4 failed, 18 passed</center>  |
+| PodSpaces | ESS | ✅  |
+| inrupt.net | NSS | ✅  |
+| solidcommunity.net | NSS | ✅  |
+| redpencil.io | CSS | 4 failed, 18 passed  |
 
-</center>
+
 
 ## Running
 

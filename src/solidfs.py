@@ -24,7 +24,6 @@ from solid_websocket.solid_websocket import websocket_daemon
 from solidfs_resource_hierarchy import SolidResourceHierarchy
 
 fuse.fuse_python_api = (0, 2)
-UNKNOWN_SIZE = 10000000
 
 
 class SolidFS(Fuse):
@@ -35,7 +34,10 @@ class SolidFS(Fuse):
         self._logger = structlog.getLogger(self.__class__.__name__).bind(session_identifier=session_identifier)
         self.requestor = self.set_up_requestor(session_identifier)
         self.hierarchy = SolidResourceHierarchy(self.requestor)
-        self.resource_buffer: dict[URIRef, bytearray] = {}
+        self.resource_write_buffer: dict[URIRef, bytearray] = {}
+
+        self.resource_read_buffer: dict[URIRef, bytes] = {}
+        """A bad cache that grows indefinitely"""
 
         Fuse.__init__(self, *args, **kw)
         self.fd = 0
@@ -269,14 +271,26 @@ class SolidFS(Fuse):
 
             # Note that we're not using a ranged request because fuse asks for very small chunks and the overhead of fetching them is large
             # Specifically, the largest read size as at 2024-04-13 is 131072 bytes.
+
+            if offset:
+                # We have to read all of a Resource so there's no point asking the server if this later part of the Resource has changed because we already have the answer from the offset=0 request
+                cached = self.resource_read_buffer.get(resource.uri)
+                if cached:
+                    content_to_return = cached[offset : offset + size]
+                    self._logger.debug("Returning content from read cache", returning_size=len(content_to_return), from_cache=True)
+                    return content_to_return
+
             response = self.requestor.request("GET", resource.uri.toPython(), {"Accept": "*"})
 
             if response.status_code != 200:
                 raise Exception(f"Error reading Solid resource {resource.uri} with code {response.status_code}: {response.text}")
 
+            content_length = len(response.content)
             content_to_return = response.content[offset : offset + size]
-            resource.content_type = response.headers["Content-Type"]
-            resource.stat.st_size = int(response.headers["Content-Length"])
+            if offset == 0:
+                resource.content_type = response.headers["Content-Type"]
+                resource.stat.st_size = content_length
+                self.resource_read_buffer[resource.uri] = response.content
 
             self._logger.debug("Returning content", returning_size=len(content_to_return))
             return content_to_return
@@ -319,7 +333,7 @@ class SolidFS(Fuse):
     def flush(self, path: str) -> int:
         resource = self.hierarchy.get_resource_by_path(path)
         with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
-            content = self.resource_buffer.get(resource.uri)
+            content = self.resource_write_buffer.get(resource.uri)
 
             if content is None:
                 self._logger.debug("No content in buffer")
@@ -343,7 +357,7 @@ class SolidFS(Fuse):
             if response.status_code == expected_put_response_code:
                 self._logger.debug("Wrote bytes to Solid server", content_length=content_length, status_code=response.status_code)
                 resource.stat.st_size = content_length
-            del self.resource_buffer[resource.uri]
+            del self.resource_write_buffer[resource.uri]
 
             return 0
 
@@ -412,10 +426,10 @@ class SolidFS(Fuse):
 
         resource = self.hierarchy.get_resource_by_path(path)
         with structlog.contextvars.bound_contextvars(resouce_url=resource.uri):
-            in_flight = self.resource_buffer.get(resource.uri)
+            in_flight = self.resource_write_buffer.get(resource.uri)
             if in_flight:
                 self._logger.debug("Truncating in-flight buffer", old_size=len(in_flight), new_size=size)
-                self.resource_buffer[resource.uri] = in_flight[:size]
+                self.resource_write_buffer[resource.uri] = in_flight[:size]
                 resource.stat.st_size = size
                 # TODO: What about content type?
                 return 0
@@ -493,7 +507,7 @@ class SolidFS(Fuse):
         resource = self.hierarchy.get_resource_by_path(path)
         with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
             content_length = len(buf)
-            buffer: bytearray = self.resource_buffer.setdefault(resource.uri, bytearray())
+            buffer: bytearray = self.resource_write_buffer.setdefault(resource.uri, bytearray())
             self._logger.debug("Adding content to buffer", size=len(buf), offset=offset)
             target_size = offset + content_length
             current_buffer_length = len(buffer)
@@ -519,9 +533,24 @@ SolidFS enables a file system interface to a Solid Pod
     )
     server = SolidFS(version="%prog " + fuse.__version__, usage=usage, dash_s_do="setsingle")
     # Set some useful defaults, they can be overridden by user-supplied command line arguments
-    server.fuse_args.optdict["max_write"] = 131072
-    server.fuse_args.optdict["max_read"] = 131072
-    server.fuse_args.optdict["max_background"] = 16
+
+    # Increase performance by increasing from 4KiB pages to 128KiB ones. In reality we're practically dealing with entire Resource contents as one chunk so an even larger chunk size would be preferable. We can't parallelize the work on the chunks.
+    chunk_128KiB = 131072
+    server.fuse_args.optdict["max_write"] = chunk_128KiB
+    server.fuse_args.optdict["max_read"] = chunk_128KiB
+    server.fuse_args.optlist.add("big_writes")
+
+    server.fuse_args.optdict["max_background"] = 64
+
+    # Always read first chunk of Resource first because we have to read it all and then we can respond to all other chunks with parts we fetched in the first request
+    server.fuse_args.optlist.add("sync_read")
+
+    server.fuse_args.optlist.add("no_remote_lock")
+
+    # We practically always run the process synchronously so we can observe it. This may change one day.
+    server.fuse_args.setmod("foreground")
+
+    # Make the mount look nicer
     server.fuse_args.optdict["fsname"] = SolidFS.__name__
 
     server.parser.add_option(mountopt="root", metavar="PATH", default="/data/", help="Surface Pod at PATH [default: %default]")

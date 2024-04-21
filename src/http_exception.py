@@ -5,11 +5,19 @@ class HTTPStatusCodeException(Exception):
         self._https_http_status_code = https_http_status_code
         if message is None:
             message = f"HTTP status code {https_http_status_code}"
-        super().__init__(message)
+        super().__init__()
+        if message:
+            self.message = message
+        else:
+            self.message = self.default_message
 
     @property
-    def http_response_code(self):
+    def http_response_code(self) -> int:
         return self._https_http_status_code
+
+    @property
+    def default_message(self) -> str:
+        return "HTTP exception"
 
 
 class HTTPStatusCodeWithRangeException(HTTPStatusCodeException):
@@ -62,6 +70,10 @@ class BadRequestException(HTTPStatusCodeException):
     def range(self) -> tuple[int, int]:
         return 400, 499
 
+    @property
+    def default_message(self) -> str:
+        return "Bad request"
+
 
 class UnauthorizedException(BadRequestException, HTTPStatusCodeWithFixedValueException):
     """401"""
@@ -77,6 +89,10 @@ class ForbiddenException(BadRequestException, HTTPStatusCodeWithFixedValueExcept
     @property
     def expected_https_http_status_code(self) -> int:
         return 403
+
+    @property
+    def default_message(self) -> str:
+        return "Forbidden"
 
 
 class NotFoundException(BadRequestException, HTTPStatusCodeWithFixedValueException):
@@ -105,32 +121,32 @@ class ServerException(HTTPStatusCodeException):
 
 class HTTPStatusCodeToException:
     @staticmethod
-    def raise_exception_for_failed_requests(http_status_code: int) -> None:
+    def raise_exception_for_failed_requests(http_status_code: int, response_text: str | None = None) -> None:
         """Allows greater control in response to problems than Response.raise_for_status"""
 
         if http_status_code < 300:
             return
 
         if http_status_code >= 300 and http_status_code < 400:
-            raise RedirectionException(http_status_code)
+            raise RedirectionException(http_status_code, response_text)
 
         if http_status_code == 404:
-            raise NotFoundException()
+            raise NotFoundException(response_text)
 
         if http_status_code == 401:
-            raise UnauthorizedException()
+            raise UnauthorizedException(response_text)
 
         if http_status_code == 403:
-            raise ForbiddenException()
+            raise ForbiddenException(response_text)
 
         if http_status_code == 406:
-            raise NotAcceptableException()
+            raise NotAcceptableException(response_text)
 
         if http_status_code >= 400 and http_status_code < 500:
-            raise BadRequestException(http_status_code)
+            raise BadRequestException(http_status_code, response_text)
 
         if http_status_code >= 500 and http_status_code < 600:
-            raise ServerException(http_status_code)
+            raise ServerException(http_status_code, response_text)
 
         if http_status_code >= 600:
-            raise Exception(f"Unexpected HTTP status code {http_status_code}")
+            raise Exception(f"Unexpected HTTP status code {http_status_code}: {response_text}")

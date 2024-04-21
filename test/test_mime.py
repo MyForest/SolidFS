@@ -1,3 +1,5 @@
+import cgi
+import mimetypes
 import sys
 import tempfile
 from pathlib import Path
@@ -59,14 +61,16 @@ def test_mime_type_in_xattr_for_text():
 
 def test_mime_type_in_xattr_for_empty():
     """The mime type is available in the extended attributes of the file so check the magic mime type detection is working reasonably"""
-    text_plain = "Some plain text"
 
     # Purposefully avoid using a file extension so it's not tempting to use it for the content type
 
     with tempfile.NamedTemporaryFile(dir=test_root_folder, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8") as temp_file:
         temp_file.flush()
+        # ; charset=utf-8
 
-        assert "application/octet-stream" == xattr.xattr(temp_file.name).get("user.mime_type").decode("utf-8")
+        full_mime_type = xattr.xattr(temp_file.name).get("user.mime_type").decode("utf-8")
+        parsed_type, _ = cgi.parse_header(full_mime_type)
+        assert "application/octet-stream" == parsed_type
         with open(temp_file.name) as source:
             content = source.read()
             assert len(content) == 0
@@ -83,7 +87,9 @@ def xtest_mime_type_in_xattr_for_png():
         temp_file.write(png)
         temp_file.flush()
 
-        assert "image/png" == xattr.xattr(temp_file.name).get("user.mime_type").decode("utf-8")
+        full_mime_type = xattr.xattr(temp_file.name).get("user.mime_type").decode("utf-8")
+        parsed_type, _ = cgi.parse_header(full_mime_type)
+        assert "image/png" == parsed_type
         with open(temp_file.name, "r+b") as source:
             content = source.read()
             assert content == png
@@ -95,4 +101,6 @@ def test_mime_type_in_xattr_for_png_from_file_extension():
     with tempfile.NamedTemporaryFile(dir=test_root_folder, prefix=sys._getframe().f_code.co_name, mode="w+b", suffix=".png") as temp_file:
         temp_file.flush()
 
-        assert "image/png" == xattr.xattr(temp_file.name).get("user.mime_type").decode("utf-8")
+        full_mime_type = xattr.xattr(temp_file.name).get("user.mime_type").decode("utf-8")
+        parsed_type, _ = cgi.parse_header(full_mime_type)
+        assert "image/png" == parsed_type

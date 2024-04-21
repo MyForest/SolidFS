@@ -91,7 +91,7 @@ class SolidResourceHierarchy:
                 values = [o.toPython() for o in g.objects(quoted_uri, p)]
                 # We can only return a single value for a xattr so we need to concatenate them
 
-                resource.extended_attributes[p.toPython()] = ExtendedAttribute("graph", ",".join(values))
+                resource.extended_attributes[p.toPython()] = ExtendedAttribute("graph", ",".join([str(v) for v in values]))
         except:
             self._logger.warning("Unable to add extended attributes", exc_info=True)
 

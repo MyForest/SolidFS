@@ -52,6 +52,7 @@ class SolidRequest(SolidRequestor):
                 response_fields=response.__attrs__,
             )
 
-            HTTPStatusCodeToException.raise_exception_for_failed_requests(response.status_code)
+            # TODO: Sanitize server-generated exception to prevent attacks
+            HTTPStatusCodeToException.raise_exception_for_failed_requests(response.status_code, response.text)
 
             return response

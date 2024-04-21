@@ -2,7 +2,7 @@ FROM python:3.12 as base
 
 RUN touch /dummy-file-for-builder
 
-RUN apt-get update && apt-get install -y fuse psmisc && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y fuse && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ RUN mkdir -p /data/
 FROM base AS devcontainer
 COPY requirements-dev.txt .
 RUN python3 -m pip --trusted-host pypi.org install -r requirements-dev.txt
-RUN apt-get update && apt-get install -y entr
+RUN apt-get update && apt-get install -y entr psmisc exa
 
 # Do not copy content such as Python source files because the latest files will be available in the development environment
 

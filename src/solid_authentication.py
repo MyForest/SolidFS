@@ -14,16 +14,19 @@ class SolidAuthentication:
         self.cached_token_expiry = None
         self.__common_headers = {"Session-Identifier": session_identifier, "User-Agent": "SolidFS/v0.0.1"}
 
-    def authenticate_with_client_credentials(self):
+    def authenticate_with_client_credentials(self) -> str | None:
 
         if self.cached_token_expiry is None or time() > self.cached_token_expiry:
 
             # Obtain client credentials from environment variables
-            client_id = os.environ.get("SOLIDFS_CLIENT_ID")
+            client_id = os.environ.get("SOLIDFS_CLIENT_ID", "")
+            if len(client_id) == 0:
+                self.__logger.info("No authentication will be used because `SOLIDFS_CLIENT_ID` was not supplied")
+                return None
             client_secret = os.environ.get("SOLIDFS_CLIENT_SECRET")
 
-            if client_id is None or client_secret is None:
-                raise Exception("Please provide the 'SOLIDFS_CLIENT_ID' and 'SOLIDFS_CLIENT_SECRET' environment variables to use as credentials")
+            if client_secret is None:
+                raise Exception("Please provide the 'SOLIDFS_CLIENT_SECRET' environment variable to use as credentials")
 
             token_url = os.environ.get("SOLIDFS_TOKEN_URL")
             if token_url is None:

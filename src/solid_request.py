@@ -22,9 +22,10 @@ class SolidRequest(SolidRequestor):
             self._session = requests.Session()
 
     def _get_auth_headers(self) -> dict[str, str]:
-        return {
-            "Authorization": f"Bearer {self._authentication.authenticate_with_client_credentials()}",
-        }
+        credential = self._authentication.authenticate_with_client_credentials()
+        if credential:
+            return {"Authorization": f"Bearer {credential}"}
+        return {}
 
     def request(self, method: str, url: str, extra_headers: dict[str, str] = {}, data: bytes | None = None) -> SolidResponse:
 

@@ -1,10 +1,9 @@
-from email.message import EmailMessage
 import sys
 import tempfile
+from email.message import EmailMessage
 from pathlib import Path
 
 import xattr
-
 
 # Use a test folder so we don't pollute the Pod too much
 test_root_folder = Path("/data") / "test/"

@@ -119,7 +119,7 @@ class SolidFS(Fuse):
             response = self.requestor.request(
                 "HEAD",
                 resource.uri.toPython(),
-                {"Accept": "*"},
+                {"Accept": "*/*"},
             )
         except HTTPStatusCodeException as http_exception:
             self._logger.warning("Unable to refresh stats", exception_message=http_exception.message, resource_url=resource.uri, status_code=http_exception.http_response_code)
@@ -377,18 +377,18 @@ class SolidFS(Fuse):
             previous_content_type = resource.content_type
             SolidMime.update_mime_type_from_content(0, resource, content)
 
-            expected_put_response_code = 204
+            expected_put_response_codes = [204, 205]
             if resource.content_type != previous_content_type:
                 # If content type varies then some Solid servers won't alter their view of the content so we have to DELETE the old content first
                 # Don't use unlink because it will remove meta data
                 self._logger.info("Deleting due to content type changing", previous_content_type=previous_content_type, content_type=resource.content_type)
                 response = self.requestor.request("DELETE", resource.uri.toPython())
-                expected_put_response_code = 201
+                expected_put_response_codes = [201]
 
             headers = {"Content-Type": resource.content_type, "Content-Length": str(content_length)}
             self._logger.info("Writing Resource content from buffer", content_length=content_length, previous_content_type=previous_content_type, **headers)
             response = self.requestor.request("PUT", resource.uri.toPython(), headers, content)
-            if response.status_code == expected_put_response_code:
+            if response.status_code in expected_put_response_codes:
                 self._logger.debug("Wrote bytes to Solid server", content_length=content_length, status_code=response.status_code)
                 resource.stat.st_size = content_length
             del self.resource_write_buffer[resource.uri]
@@ -532,7 +532,7 @@ class SolidFS(Fuse):
         with structlog.contextvars.bound_contextvars(resouce_url=resource.uri):
             response = self.requestor.request("DELETE", resource.uri.toPython())
 
-            if response.status_code in [200, 204]:  # We don't support 202 yet
+            if response.status_code in [200, 204, 205]:  # We don't support 202 yet
                 parent = self.hierarchy.get_parent(path)
                 if not parent.contains is None:
                     parent.contains.remove(resource)

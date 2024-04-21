@@ -14,6 +14,7 @@ from fuse import Fuse
 from rdflib.term import URIRef
 
 from decorators import Decorators
+from http_exception import HTTPStatusCodeException
 from observability.app_logging import AppLogging
 from observability.tracing import Tracing
 from solid_mime import SolidMime
@@ -108,12 +109,15 @@ class SolidFS(Fuse):
     @Decorators.log_invocation_with_scalar_args
     def _refresh_resource_stat(self, resource: Resource) -> None:
 
-        response = self.requestor.request(
-            "HEAD",
-            resource.uri.toPython(),
-            {"Accept": "*"},
-        )
-
+        try:
+            response = self.requestor.request(
+                "HEAD",
+                resource.uri.toPython(),
+                {"Accept": "*"},
+            )
+        except HTTPStatusCodeException as http_exception:
+            self._logger.warning("Unable to refresh stats", exception_message=http_exception.message, resource_url=resource.uri, status_code=http_exception.http_response_code)
+            return
         # Typical Headers
         # "Accept-Patch",
         # "Accept-Post",
@@ -167,7 +171,7 @@ class SolidFS(Fuse):
     def getattr(self, path: str) -> fuse.Stat | int:
         resource = self.hierarchy.get_resource_by_path(path)
         with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
-            if resource.stat.st_mtime == 0:
+            if resource.stat.st_mtime == 0 or resource.stat.st_mode == 0:
                 self._refresh_resource_stat(resource)
             self._logger.debug("Stats", **vars(resource.stat))
         return resource.stat
@@ -194,8 +198,7 @@ class SolidFS(Fuse):
     @Decorators.log_invocation_with_scalar_args
     @SolidPathValidation.customize_return_based_on_exception_type
     def listxattr(self, path: str, size: int) -> list | int:
-
-        attribute_list = ["user.mime_type"]
+        attribute_list = ["user.mime_type", ""]
         if size == 0:
             # We are asked for size of the attr list, i.e. joint size of attrs
             # plus null separators.

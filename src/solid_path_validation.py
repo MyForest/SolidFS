@@ -27,6 +27,7 @@ class SolidPathValidation:
             try:
                 return func(*args, **kwargs)
             except HTTPStatusCodeException as http_exception:
+                structlog.getLogger(SolidPathValidation.__name__).debug(http_exception.message, http_response_code=http_exception.http_response_code)
                 error_number = HTTPToErrNo.http_to_errno(http_exception.http_response_code)
                 return -error_number
             except:

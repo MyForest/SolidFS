@@ -76,8 +76,7 @@ def test_mime_type_in_xattr_for_empty():
         # ; charset=utf-8
 
         full_mime_type = xattr.xattr(temp_file.name).get("user.mime_type").decode("utf-8")
-        parsed_type, _ = __get_mime_type(full_mime_type)
-        assert "application/octet-stream" == parsed_type
+        assert "application/octet-stream" == __get_mime_type(full_mime_type)
         with open(temp_file.name) as source:
             content = source.read()
             assert len(content) == 0
@@ -95,8 +94,7 @@ def xtest_mime_type_in_xattr_for_png():
         temp_file.flush()
 
         full_mime_type = xattr.xattr(temp_file.name).get("user.mime_type").decode("utf-8")
-        parsed_type, _ = __get_mime_type(full_mime_type)
-        assert "image/png" == parsed_type
+        assert "image/png" == __get_mime_type(full_mime_type)
         with open(temp_file.name, "r+b") as source:
             content = source.read()
             assert content == png
@@ -109,5 +107,4 @@ def test_mime_type_in_xattr_for_png_from_file_extension():
         temp_file.flush()
 
         full_mime_type = xattr.xattr(temp_file.name).get("user.mime_type").decode("utf-8")
-        parsed_type, _ = __get_mime_type(full_mime_type)
-        assert "image/png" == parsed_type
+        assert "image/png" == __get_mime_type(full_mime_type)

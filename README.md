@@ -15,6 +15,23 @@ There is no plan to resolve any one of the specific shortcomings as at 2024-04-1
 
 There is no warranty with this tool and it may break your content on your machine, in your Pod or both. At this time you should only use this tool if you can cope with the consequences of that.
 
+## Compatability
+
+Tested using `id.inrupt.com` auth or no auth.
+
+This may sound obvious, but this only covers the [tests](tests/) you can see.
+
+<center>
+
+| Solid Server | <center>Technology</center> | <center>Tested</center> |
+| --- | --- | --- |
+| PodSpaces | <center>ESS</center> | <center>✅</center>  |
+| inrupt.net | <center>NSS</center> | <center>✅</center>  |
+| solidcommunity.net | <center>NSS</center> | <center>✅</center>  |
+| redpencil.io | <center>CSS</center> | <center>4 failed, 18 passed</center>  |
+
+</center>
+
 ## Running
 
 It's currently very hard to run this from source. You may find the Docker approach the easiest if you're unsure of what to do.

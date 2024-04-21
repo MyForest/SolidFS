@@ -44,8 +44,10 @@ class SolidResourceHierarchy:
             if base_url is None:
                 self._logger.exception("Please set the 'SOLIDFS_BASE_URL'")
                 raise Exception("Please set the 'SOLIDFS_BASE_URL'")
+            if not base_url.endswith("/"):
+                base_url += "/"
             self._logger.info("Establishing root", base_url=base_url)
-            self.root = Container(URIRef(base_url) + "/", ResourceStat(mode=S_IFDIR | 0o777, nlink=2))
+            self.root = Container(URIRef(base_url), ResourceStat(mode=S_IFDIR | 0o777, nlink=2))
 
         return self.root
 

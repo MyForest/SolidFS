@@ -18,6 +18,8 @@ from solid_websocket.solid_websocket import SolidWebsocket
 class SolidResourceHierarchy:
     """A Solid Pod is a Resource hierarchy with Containers representing the branches and non-Containers as the leaves"""
 
+    UNKNOWN_SIZE = 1000000000
+
     def __init__(self, requestor: SolidRequestor):
         self._logger = structlog.getLogger(self.__class__.__name__)
 
@@ -96,7 +98,7 @@ class SolidResourceHierarchy:
                             if str(resource).endswith("/"):
                                 discovered_resource = Container(resource, ResourceStat(mode=stat.S_IFDIR | 0o755, nlink=2))
                             else:
-                                discovered_resource = Resource(resource, ResourceStat(size=1000000, mode=stat.S_IFREG | 0o444))
+                                discovered_resource = Resource(resource, ResourceStat(size=SolidResourceHierarchy.UNKNOWN_SIZE, mode=stat.S_IFREG | 0o444))
 
                             try:
                                 SolidWebsocket.set_up_listener_for_notifications(self.requestor, discovered_resource)

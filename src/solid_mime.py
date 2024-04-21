@@ -2,7 +2,7 @@ import mimetypes
 
 import magic
 
-from solid_resource import Resource
+from solid_resource import ExtendedAttribute, Resource
 
 
 class SolidMime:
@@ -19,6 +19,7 @@ class SolidMime:
                 magic_mime = magic.from_buffer(bytes(content[:1024]), mime=True)
                 if magic_mime:
                     resource.content_type = magic_mime
+                    resource.extended_attributes["user.mime_type"] = ExtendedAttribute("update_mime_type_from_content", magic_mime)
             except:
                 # Could not determine mime type from bytes
                 pass
@@ -34,5 +35,7 @@ class SolidMime:
         if type_from_extension:
             if encoding_from_extension:
                 resource.content_type = f"{type_from_extension};charset={encoding_from_extension}"
+                resource.extended_attributes["user.mime_type"] = ExtendedAttribute("update_mime_type_from_uri", type_from_extension)
             else:
                 resource.content_type = type_from_extension
+                resource.extended_attributes["user.mime_type"] = ExtendedAttribute("update_mime_type_from_uri", type_from_extension)

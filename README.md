@@ -259,6 +259,22 @@ drwx------@    - root 13 Apr 02:44 test
 .rwx------@    1 root 13 Apr 02:24 test.png
                                    └── user.mime_type: "image/png"
 ```
+Another example, this time when multiple Pods are mounted and we want to investigate the server type:
+
+```
+pods/$ exa --tree --level 2 --only-dirs --list-dirs --extended | grep -v ".link." | grep -iv "http" | grep -v ".allow." | grep -v "security.selinux" | grep -v "user.mime_type" | grep -iB2 "x-powered-by"
+.
+├── myforest.inrupt.net
+│  ├── user.header.x-powered-by: "solid-server/5.7.10"
+--
+│  └── settings
+├── myforest.solidcommunity.net
+│  ├── user.header.x-powered-by: "solid-server/5.7.10"
+--
+├── solidweb.me
+│  └── myforest
+│     ├── user.header.x-powered-by: "Community Solid Server"
+```
 
 ## Developing
 

@@ -13,7 +13,13 @@ from rdflib.term import URIRef
 
 from http_exception import ForbiddenException, NotFoundException, UnauthorizedException
 from solid_requestor import SolidRequestor
-from solid_resource import Container, Resource, ResourceStat, URIRefHelper
+from solid_resource import (
+    Container,
+    ExtendedAttribute,
+    Resource,
+    ResourceStat,
+    URIRefHelper,
+)
 from solid_websocket.solid_websocket import SolidWebsocket
 
 
@@ -76,8 +82,19 @@ class SolidResourceHierarchy:
 
     def _extend_resource(self, resource: Resource, g: Graph) -> None:
         """Looks for interesting triples in graph that might give us more insight into the state of the Resource. Notably this is cheaper than doing HEAD on each Resource."""
-
+        excluded = [URIRef("http://www.w3.org/ns/ldp#contains")]
         quoted_uri = URIRef(URIRefHelper.to_quoted_url(resource.uri))
+
+        try:
+            for p in [p for p in g.predicates(quoted_uri) if not p in excluded]:
+
+                values = [o.toPython() for o in g.objects(quoted_uri, p)]
+                # We can only return a single value for a xattr so we need to concatenate them
+
+                resource.extended_attributes[p.toPython()] = ExtendedAttribute("graph", ",".join(values))
+        except:
+            self._logger.warning("Unable to add extended attributes", exc_info=True)
+
         mtimes = list(g.objects(quoted_uri, URIRef("http://www.w3.org/ns/posix/stat#mtime")))
         if mtimes:
             newest = int(sorted(mtimes)[-1].toPython())

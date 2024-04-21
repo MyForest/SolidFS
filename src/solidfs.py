@@ -20,7 +20,13 @@ from observability.tracing import Tracing
 from solid_mime import SolidMime
 from solid_path_validation import SolidPathValidation
 from solid_requestor import SolidRequestor, requestor_daemon
-from solid_resource import Container, Resource, ResourceStat, URIRefHelper
+from solid_resource import (
+    Container,
+    ExtendedAttribute,
+    Resource,
+    ResourceStat,
+    URIRefHelper,
+)
 from solid_websocket.solid_websocket import websocket_daemon
 from solidfs_resource_hierarchy import SolidResourceHierarchy
 
@@ -134,7 +140,27 @@ class SolidFS(Fuse):
         # "Vary",
         # "WAC-Allow"
 
+        headers_to_reflect_in_extended_attributes = ["allow"]
+
+        # TODO: If you just readdir the root you don't get the triples from the contains
+        if resource == self.hierarchy._get_root():
+            headers_to_reflect_in_extended_attributes.append("X-Powered-By")
+
+        try:
+            for header in headers_to_reflect_in_extended_attributes:
+                if header in response.headers:
+                    resource.extended_attributes[f"user.header.{header.lower()}"] = ExtendedAttribute("headers", response.headers.get(header, ""))
+        except:
+            self._logger.warning("Unable to add headers to extended attributes", exc_info=True)
+
+        try:
+            for rel, d in response.links.items():
+                resource.extended_attributes[f"user.link.{rel.lower()}"] = ExtendedAttribute("links", d.get("url", ""))
+        except:
+            self._logger.warning("Unable to add links to extended attributes", exc_info=True)
+
         if "Content-Type" in response.headers:
+            resource.extended_attributes["user.mime_type"] = ExtendedAttribute("headers", response.headers["Content-Type"])
             resource.content_type = response.headers["Content-Type"]
 
         if "Last-Modified" in response.headers:
@@ -182,13 +208,15 @@ class SolidFS(Fuse):
     @Decorators.log_invocation_with_scalar_args
     @SolidPathValidation.customize_return_based_on_exception_type
     def getxattr(self, path: str, name: str, size: int) -> str | int:
-        if name == "user.mime_type":
-            resource = self.hierarchy.get_resource_by_path(path)
-            attribute_value = resource.content_type
-            if size == 0:
-                # We are asked for size of the value.
-                return len(attribute_value)
-            return attribute_value
+        resource = self.hierarchy.get_resource_by_path(path)
+        with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
+            extended_attribute = resource.extended_attributes.get(name)
+            if extended_attribute:
+                attribute_value = extended_attribute.value
+                if size == 0:
+                    # We are asked for size of the value.
+                    return len(attribute_value)
+                return attribute_value
 
         return 0
 
@@ -198,12 +226,14 @@ class SolidFS(Fuse):
     @Decorators.log_invocation_with_scalar_args
     @SolidPathValidation.customize_return_based_on_exception_type
     def listxattr(self, path: str, size: int) -> list | int:
-        attribute_list = ["user.mime_type", ""]
-        if size == 0:
-            # We are asked for size of the attr list, i.e. joint size of attrs
-            # plus null separators.
-            return len("".join(attribute_list)) + len(attribute_list)
-        return attribute_list
+        resource = self.hierarchy.get_resource_by_path(path)
+        with structlog.contextvars.bound_contextvars(resource_url=resource.uri):
+            attribute_list = [str(k) for k in resource.extended_attributes.keys()]
+            if size == 0:
+                # We are asked for size of the attr list, i.e. joint size of attrs
+                # plus null separators.
+                return len("".join(attribute_list)) + len(attribute_list)
+            return attribute_list
 
     @Tracing.traced
     @SolidPathValidation.validate_path
@@ -292,6 +322,7 @@ class SolidFS(Fuse):
             content_to_return = response.content[offset : offset + size]
             if offset == 0:
                 resource.content_type = response.headers["Content-Type"]
+                resource.extended_attributes["user.mime_type"] = ExtendedAttribute("headers", response.headers["Content-Type"])
                 resource.stat.st_size = content_length
                 self.resource_read_buffer[resource.uri] = response.content
 

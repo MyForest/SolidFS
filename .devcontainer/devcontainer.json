@@ -17,7 +17,10 @@
       },
       "extensions": [
         "ms-python.python",
-        "LittleFoxTeam.vscode-python-test-adapter"
+        "LittleFoxTeam.vscode-python-test-adapter",
+        "yzhang.markdown-all-in-one",
+        "eamodio.gitlens",
+        "littlefoxteam.vscode-python-test-adapter"
       ]
     }
   }

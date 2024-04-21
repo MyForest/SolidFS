@@ -23,12 +23,12 @@ This may sound obvious, but this only covers the [tests](test/) you can see.
 
 
 
-| Solid Server | Technology | Tested |
-| --- | --- | --- |
-| PodSpaces | ESS | ✅  |
-| inrupt.net | NSS | ✅  |
-| solidcommunity.net | NSS | ✅  |
-| redpencil.io | CSS | 4 failed, 18 passed  |
+| Solid Server       | Technology | Tested              |
+| ------------------ | ---------- | ------------------- |
+| PodSpaces          | ESS        | ✅                   |
+| inrupt.net         | NSS        | ✅                   |
+| solidcommunity.net | NSS        | ✅                   |
+| redpencil.io       | CSS        | 4 failed, 18 passed |
 
 
 
@@ -44,15 +44,17 @@ In the `.env` file there are a number of settings.
 
 This is the most important setting.
 
-You can [get a Pod](https://solidproject.org/users/get-a-pod) from many places, but this tool is only tested with [PodSpaces](https://start.inrupt.com/) so far.
+You can [get a Pod](https://solidproject.org/users/get-a-pod) from many places.
 
 The value should be something like this:
 
-```
-https://storage.inrupt.com/ecce92aa-5fa3-4333-8883-4917c405d4d5
-```
+| Solid Server       | Example `SOLIDFS_BASE_URL`                                      |
+| ------------------ | --------------------------------------------------------------- |
+| PodSpaces          | https://storage.inrupt.com/ecce92aa-5fa3-4333-8883-4917c405d4d5 |
+| inrupt.net         | https://example.inrupt.net                                      |
+| solidcommunity.net | https://example.solidcommunity.net                              |
+| redpencil.io       | https://solid.redpencil.io/example                              |
 
-Note there is no trailing slash.
 
 Interestingly you can also mount a Container deeper within a Pod. This is useful if you only have access to a small part of a Pod. In that case you'd have a value such as this:
 
@@ -111,8 +113,10 @@ Now copy [.env.sample](.env.sample) to `.env` and put your settings in there.
 Now you can mount your Pod. Be thoughtful about where you mount it. For example if you mount it in your home and you have a backup process covering all of home it might copy your Pod too.
 
 ```bash
-python3 src/solidfs.py -fd ~/pod/
+python3 src/solidfs.py -d ~/pod/
 ```
+
+Note the `-d` turns on debug for fuselib which is generally useful whilst this tool is still hardening.
 
 ### Docker
 

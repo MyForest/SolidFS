@@ -5,7 +5,6 @@ from pathlib import Path
 
 import xattr
 
-from solid_mime import SolidMime
 
 # Use a test folder so we don't pollute the Pod too much
 test_root_folder = Path("/data") / "test/"

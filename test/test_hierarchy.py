@@ -4,37 +4,33 @@ import uuid
 from pathlib import Path
 
 import pytest
-import xattr
-
-# Use a test folder so we don't pollute the Pod too much
-test_root_folder = Path("/data") / "test/"
 
 
-def test_create_and_remove_folder():
-    with tempfile.TemporaryDirectory(dir=test_root_folder, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
+def test_create_and_remove_folder(test_root_path):
+    with tempfile.TemporaryDirectory(dir=test_root_path, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
         assert Path(temp_folder_name).exists()
 
     assert not Path(temp_folder_name).exists()
 
 
-def test_create_and_remove_folder_with_backslash():
-    with tempfile.TemporaryDirectory(dir=test_root_folder, prefix=sys._getframe().f_code.co_name + "\\ is a backslash") as temp_folder_name:
+def test_create_and_remove_folder_with_backslash(test_root_path):
+    with tempfile.TemporaryDirectory(dir=test_root_path, prefix=sys._getframe().f_code.co_name + "\\ is a backslash") as temp_folder_name:
         assert Path(temp_folder_name).exists()
 
     assert not Path(temp_folder_name).exists()
 
 
-def test_create_and_remove_folder_with_interesting_name():
-    with tempfile.TemporaryDirectory(dir=test_root_folder, prefix=sys._getframe().f_code.co_name + "🦖") as temp_folder_name:
+def test_create_and_remove_folder_with_interesting_name(test_root_path):
+    with tempfile.TemporaryDirectory(dir=test_root_path, prefix=sys._getframe().f_code.co_name + "🦖") as temp_folder_name:
         assert Path(temp_folder_name).exists()
         # TODO: We could do with a way to access the server state without going through the code we're testing. This would allow us to verify it had really made the update we want.
 
     assert not Path(temp_folder_name).exists()
 
 
-def test_create_and_remove_folder_with_interesting_intermediate_folder_names():
+def test_create_and_remove_folder_with_interesting_intermediate_folder_names(test_root_path):
 
-    with tempfile.TemporaryDirectory(dir=test_root_folder, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
+    with tempfile.TemporaryDirectory(dir=test_root_path, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
         temp_folder = Path(temp_folder_name)
         intermediate = temp_folder / "🦖"
         deep_subfolder = intermediate / "sub" / "🦢"
@@ -47,8 +43,8 @@ def test_create_and_remove_folder_with_interesting_intermediate_folder_names():
     assert not intermediate.exists()
 
 
-def test_create_and_remove_sub_folder():
-    with tempfile.TemporaryDirectory(dir=test_root_folder, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
+def test_create_and_remove_sub_folder(test_root_path):
+    with tempfile.TemporaryDirectory(dir=test_root_path, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
         with tempfile.TemporaryDirectory(dir=temp_folder_name, prefix=sys._getframe().f_code.co_name) as sub_folder:
             assert Path(temp_folder_name).exists()
             assert Path(sub_folder).exists()
@@ -57,8 +53,8 @@ def test_create_and_remove_sub_folder():
     assert not Path(temp_folder_name).exists()
 
 
-def test_create_and_remove_deep_sub_folder_in_one_operation():
-    with tempfile.TemporaryDirectory(dir=test_root_folder, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
+def test_create_and_remove_deep_sub_folder_in_one_operation(test_root_path):
+    with tempfile.TemporaryDirectory(dir=test_root_path, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
         assert Path(temp_folder_name).exists()
         deep_subfolder = Path(temp_folder_name) / "deep" / "sub" / "folder"
         try:
@@ -74,16 +70,16 @@ def test_create_and_remove_deep_sub_folder_in_one_operation():
     assert not Path(temp_folder_name).exists()
 
 
-def test_create_and_remove_file():
-    with tempfile.NamedTemporaryFile(dir=test_root_folder, prefix=sys._getframe().f_code.co_name) as temp_file:
+def test_create_and_remove_file(test_root_path):
+    with tempfile.NamedTemporaryFile(dir=test_root_path, prefix=sys._getframe().f_code.co_name) as temp_file:
         assert Path(temp_file.name).exists()
 
     assert not Path(temp_file.name).exists()
 
 
-def test_create_and_remove_file_in_folder():
+def test_create_and_remove_file_in_folder(test_root_path):
 
-    with tempfile.TemporaryDirectory(dir=test_root_folder, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
+    with tempfile.TemporaryDirectory(dir=test_root_path, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
         with tempfile.NamedTemporaryFile(dir=temp_folder_name, prefix=sys._getframe().f_code.co_name) as temp_file:
             assert Path(temp_file.name).exists()
 
@@ -91,9 +87,9 @@ def test_create_and_remove_file_in_folder():
     assert not Path(temp_folder_name).exists()
 
 
-def test_create_and_remove_file_in_deep_subfolder():
+def test_create_and_remove_file_in_deep_subfolder(test_root_path):
 
-    with tempfile.TemporaryDirectory(dir=test_root_folder, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
+    with tempfile.TemporaryDirectory(dir=test_root_path, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
         deep_subfolder = Path(temp_folder_name) / "deep" / "sub" / "folder"
         deep_subfolder.mkdir(parents=True)
         with tempfile.NamedTemporaryFile(dir=deep_subfolder, prefix=sys._getframe().f_code.co_name) as temp_file:
@@ -105,9 +101,9 @@ def test_create_and_remove_file_in_deep_subfolder():
     assert not Path(temp_folder_name).exists()
 
 
-def test_create_and_remove_file_with_interesting_name_in_deep_subfolder_with_interesting_name():
+def test_create_and_remove_file_with_interesting_name_in_deep_subfolder_with_interesting_name(test_root_path):
 
-    with tempfile.TemporaryDirectory(dir=test_root_folder, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
+    with tempfile.TemporaryDirectory(dir=test_root_path, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
         temp_folder = Path(temp_folder_name)
         intermediate = temp_folder / "🦖"
         deep_subfolder = intermediate / "sub" / "🦢"
@@ -121,10 +117,10 @@ def test_create_and_remove_file_with_interesting_name_in_deep_subfolder_with_int
     assert not Path(temp_folder_name).exists()
 
 
-def test_create_and_remove_file_with_content():
+def test_create_and_remove_file_with_content(test_root_path):
 
     insert = f"# {uuid.uuid4().hex}"
-    with tempfile.NamedTemporaryFile(dir=test_root_folder, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".ttl", delete_on_close=False) as temp_file:
+    with tempfile.NamedTemporaryFile(dir=test_root_path, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".ttl", delete_on_close=False) as temp_file:
         temp_file.write(insert)
         temp_file.close()
 
@@ -135,12 +131,12 @@ def test_create_and_remove_file_with_content():
 
 
 @pytest.mark.slow
-def test_create_and_remove_file_with_repeated_content():
+def test_create_and_remove_file_with_repeated_content(test_root_path):
 
     insert = f"# {uuid.uuid4().hex}"
     repeats = 3 + int(4096 / len(insert))
     repeated_content = insert * repeats
-    with tempfile.NamedTemporaryFile(dir=test_root_folder, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".ttl", delete_on_close=False) as temp_file:
+    with tempfile.NamedTemporaryFile(dir=test_root_path, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".ttl", delete_on_close=False) as temp_file:
         temp_file.write(repeated_content)
         temp_file.close()
 
@@ -151,10 +147,10 @@ def test_create_and_remove_file_with_repeated_content():
     assert content == repeated_content
 
 
-def test_create_and_remove_file_with_content_in_folder():
+def test_create_and_remove_file_with_content_in_folder(test_root_path):
 
     insert = f"# {uuid.uuid4().hex}"
-    with tempfile.TemporaryDirectory(dir=test_root_folder, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
+    with tempfile.TemporaryDirectory(dir=test_root_path, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
         with tempfile.NamedTemporaryFile(
             dir=temp_folder_name, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".ttl", delete_on_close=False
         ) as temp_file:
@@ -167,10 +163,10 @@ def test_create_and_remove_file_with_content_in_folder():
     assert content == insert
 
 
-def test_create_and_remove_file_with_content_in_sub_folder():
+def test_create_and_remove_file_with_content_in_sub_folder(test_root_path):
 
     insert = f"# {uuid.uuid4().hex}"
-    with tempfile.TemporaryDirectory(dir=test_root_folder, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
+    with tempfile.TemporaryDirectory(dir=test_root_path, prefix=sys._getframe().f_code.co_name) as temp_folder_name:
         with tempfile.TemporaryDirectory(dir=temp_folder_name, prefix=sys._getframe().f_code.co_name) as sub_folder:
             with tempfile.NamedTemporaryFile(
                 dir=sub_folder, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".ttl", delete_on_close=False
@@ -184,11 +180,11 @@ def test_create_and_remove_file_with_content_in_sub_folder():
     assert content == insert
 
 
-def test_create_and_remove_file_with_content_rewrite():
+def test_create_and_remove_file_with_content_rewrite(test_root_path):
 
     insert_before = f"# {uuid.uuid4().hex}"
     insert_after = f"# {uuid.uuid4().hex}"
-    with tempfile.NamedTemporaryFile(dir=test_root_folder, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".ttl", delete_on_close=False) as temp_file:
+    with tempfile.NamedTemporaryFile(dir=test_root_path, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".ttl", delete_on_close=False) as temp_file:
         temp_file.write(insert_before)
         temp_file.close()
 
@@ -208,11 +204,11 @@ def test_create_and_remove_file_with_content_rewrite():
 
 
 @pytest.mark.append
-def x_no_append_test_create_and_remove_file_with_content_append():
+def x_no_append_test_create_and_remove_file_with_content_append(test_root_path):
 
     insert_before = f"# {uuid.uuid4().hex}"
     insert_after = f"# {uuid.uuid4().hex}"
-    with tempfile.NamedTemporaryFile(dir=test_root_folder, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".ttl", delete_on_close=False) as temp_file:
+    with tempfile.NamedTemporaryFile(dir=test_root_path, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".ttl", delete_on_close=False) as temp_file:
         temp_file.write(insert_before)
         temp_file.close()
 

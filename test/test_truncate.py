@@ -2,14 +2,11 @@ import sys
 import tempfile
 from pathlib import Path
 
-# Use a test folder so we don't pollute the Pod too much
-test_root_folder = Path("/data") / "test/"
 
-
-def test_truncate_to_nothing_when_empty():
+def test_truncate_to_nothing_when_empty(test_root_path):
     new_text = "New text"
 
-    with tempfile.NamedTemporaryFile(dir=test_root_folder, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".txt", delete_on_close=False) as temp_file:
+    with tempfile.NamedTemporaryFile(dir=test_root_path, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".txt", delete_on_close=False) as temp_file:
 
         temp_file.truncate(0)
         temp_file.write(new_text)
@@ -20,11 +17,11 @@ def test_truncate_to_nothing_when_empty():
             assert content == new_text
 
 
-def x_no_append_test_truncate_to_nothing():
+def x_no_append_test_truncate_to_nothing(test_root_path):
     old_text = "Original text"
     new_text = "New text"
 
-    with tempfile.NamedTemporaryFile(dir=test_root_folder, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".txt", delete_on_close=False) as temp_file:
+    with tempfile.NamedTemporaryFile(dir=test_root_path, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".txt", delete_on_close=False) as temp_file:
         file_name = temp_file.name
         temp_file.write(old_text)
 
@@ -43,10 +40,10 @@ def x_no_append_test_truncate_to_nothing():
             assert content == new_text
 
 
-def test_truncate_to_something():
+def test_truncate_to_something(test_root_path):
     old_text = "Original text"
     truncate_size = 4
-    with tempfile.NamedTemporaryFile(dir=test_root_folder, prefix=sys._getframe().f_code.co_name, mode="w+t", suffix=".txt", delete_on_close=False) as temp_file:
+    with tempfile.NamedTemporaryFile(dir=test_root_path, prefix=sys._getframe().f_code.co_name, mode="w+t", suffix=".txt", delete_on_close=False) as temp_file:
         file_name = temp_file.name
         temp_file.write(old_text)
         temp_file.flush()

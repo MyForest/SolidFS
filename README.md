@@ -23,12 +23,12 @@ This may sound obvious, but this only covers the [tests](test/) you can see.
 
 
 
-| Solid Server       | Technology | Tested              |
-| ------------------ | ---------- | ------------------- |
-| PodSpaces          | ESS        | ✅                   |
-| inrupt.net         | NSS        | ✅                   |
-| solidcommunity.net | NSS        | ✅                   |
-| redpencil.io       | CSS        | 4 failed, 18 passed |
+| Solid Server         | Technology | Tested |
+| -------------------- | ---------- | ------ |
+| PodSpaces            | ESS        | ✅      |
+| inrupt.net           | NSS        | ✅      |
+| solidcommunity.net   | NSS        | ✅      |
+| Solid Lab Playground | CSS        | ✅      |
 
 
 

@@ -3,10 +3,10 @@ import tempfile
 from pathlib import Path
 
 
-def test_truncate_to_nothing_when_empty(test_root_path):
+def test_truncate_to_nothing_when_empty(session_root_path):
     new_text = "New text"
 
-    with tempfile.NamedTemporaryFile(dir=test_root_path, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".txt", delete_on_close=False) as temp_file:
+    with tempfile.NamedTemporaryFile(dir=session_root_path, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".txt", delete_on_close=False) as temp_file:
 
         temp_file.truncate(0)
         temp_file.write(new_text)
@@ -40,10 +40,10 @@ def x_no_append_test_truncate_to_nothing(test_root_path):
             assert content == new_text
 
 
-def test_truncate_to_something(test_root_path):
+def test_truncate_to_something(session_root_path):
     old_text = "Original text"
     truncate_size = 4
-    with tempfile.NamedTemporaryFile(dir=test_root_path, prefix=sys._getframe().f_code.co_name, mode="w+t", suffix=".txt", delete_on_close=False) as temp_file:
+    with tempfile.NamedTemporaryFile(dir=session_root_path, prefix=sys._getframe().f_code.co_name, mode="w+t", suffix=".txt", delete_on_close=False) as temp_file:
         file_name = temp_file.name
         temp_file.write(old_text)
         temp_file.flush()

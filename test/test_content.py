@@ -28,14 +28,14 @@ def x_no_append_test_create_and_remove_file_with_content_appended_after_large_pa
         assert content == f"{repeated_content}{insert_after}"
 
 
-def test_create_and_remove_file_with_interesting_content(test_root_path):
+def test_create_and_remove_file_with_interesting_content(session_root_path):
     # https://www.kermitproject.org/utf8.html
     # https://emojipedia.org/bird
     insert = """¥ · £ · € · $ · ¢ · ₡ · ₢ · ₣ · ₤ · ₥ · ₦ · ₧ · ₨ · ₩ · ₪ · ₫ · ₭ · ₮ · ₯ · ₹
 ⠊⠀⠉⠁⠝⠀⠑⠁⠞⠀⠛⠇⠁⠎⠎⠀⠁⠝⠙⠀⠊⠞⠀⠙⠕⠑⠎⠝⠞⠀⠓⠥⠗⠞⠀⠍⠑ 
 🐿️🦅🦉🐝💫🦆🕊️🐤🐥🐓🦕🦖🐧🦜🦢🦩🦇🦃🦚🐔✈️⛳🐈🐣🥚🦎🌳🪶😵‍💫🪺🪹
 """
-    with tempfile.NamedTemporaryFile(dir=test_root_path, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".txt", delete_on_close=False) as temp_file:
+    with tempfile.NamedTemporaryFile(dir=session_root_path, prefix=sys._getframe().f_code.co_name, mode="w+t", encoding="utf-8", suffix=".txt", delete_on_close=False) as temp_file:
         temp_file.write(insert)
         temp_file.close()
 

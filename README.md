@@ -1,3 +1,5 @@
+[![No Maintenance Intended](http://unmaintained.tech/badge.svg)](http://unmaintained.tech/)
+
 # SolidFS
 
 SolidFS is a [FUSE](https://github.com/libfuse/libfuse) driver for [Solid](https://solidproject.org/).
